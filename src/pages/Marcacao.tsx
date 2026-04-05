@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
+import { MarcacaoRapidaData } from '../App';
 
 interface Medico {
   id: string;
   nome: string;
-}
-
-interface Codigo {
-  modalidade: string;
-  especialidade: string;
-  codigo_aghu: string;
 }
 
 interface FormData {
@@ -29,7 +25,12 @@ interface CodigoInfo {
   codigo_aghu: string;
 }
 
-export function Marcacao() {
+interface MarcacaoProps {
+  precheckedData?: MarcacaoRapidaData | null;
+  onClear?: () => void;
+}
+
+export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [modalidades, setModalidades] = useState<string[]>([]);
   const [especialidades, setEspecialidades] = useState<string[]>([]);
@@ -50,6 +51,22 @@ export function Marcacao() {
     loadMedicos();
     loadAllCodigos();
   }, []);
+
+  /**
+   * Pré-preenche formulário quando vem de marcação rápida da agenda
+   */
+  useEffect(() => {
+    if (precheckedData) {
+      setFormData((prev) => ({
+        ...prev,
+        data: precheckedData.data,
+        medico_id: precheckedData.medico_id,
+        modalidade: precheckedData.modalidade,
+        especialidade: '', // Será preenchido automaticamente pelo changehandler
+        codigo_aghu: '',
+      }));
+    }
+  }, [precheckedData]);
 
   useEffect(() => {
     if (formData.medico_id) {
@@ -149,7 +166,7 @@ export function Marcacao() {
         .select('vagas_totais')
         .eq('data', formData.data)
         .eq('medico_id', formData.medico_id)
-        .maybeSingle();
+        .maybeSingle() as { data: { vagas_totais: number } | null };
 
       if (!vagaConfig) {
         setVagasDisponiveis(null);
@@ -201,7 +218,7 @@ export function Marcacao() {
     }
 
     try {
-      const { error: insertError } = await supabase.from('marcacoes').insert([formData]);
+      const { error: insertError } = await supabase.from('marcacoes').insert([formData] as Database['public']['Tables']['marcacoes']['Insert'][]);
 
       if (insertError) {
         if (insertError.code === '23505') {
@@ -228,6 +245,11 @@ export function Marcacao() {
       });
       setVagasDisponiveis(null);
 
+      // Limpar dados de marcação rápida se vieram da agenda
+      if (onClear) {
+        onClear();
+      }
+
       setTimeout(() => {
         loadAllCodigos();
       }, 500);
@@ -253,6 +275,14 @@ export function Marcacao() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Nova Marcação</h1>
         <p className="text-gray-500 mt-1">Registrar atendimento com seleção inteligente</p>
+        
+        {precheckedData && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              ✓ <strong>Marcação rápida:</strong> Dados pré-preenchidos da agenda
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 md:p-8 max-w-2xl">

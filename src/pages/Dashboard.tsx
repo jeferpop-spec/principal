@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Users, FileText, Calendar, CheckCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/database.types';
 
 interface Stats {
   totalMedicos: number;
@@ -31,7 +32,7 @@ export function Dashboard() {
       const [medicosRes, codigosRes, vagasRes, marcacoesRes] = await Promise.all([
         supabase.from('medicos').select('id', { count: 'exact' }).eq('ativo', true),
         supabase.from('codigos_aghu').select('id', { count: 'exact' }).eq('ativo', true),
-        supabase.from('vagas_dia').select('vagas_totais').eq('data', hoje),
+        supabase.from('vagas_dia').select('vagas_totais').eq('data', hoje) as { data: { vagas_totais: number }[] | null },
         supabase.from('marcacoes').select('id', { count: 'exact' }).eq('data', hoje),
       ]);
 

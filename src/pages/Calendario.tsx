@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Notification, NotificationType } from '../components/Notification';
+import { AgendaCell, AgendaCellData } from '../components/AgendaCell';
+import { useBloqueios } from '../hooks/useBloqueios';
+import { motivosBloqueio } from '../lib/bloqueios.types';
+import { agruparMarcacoesPorDiaMedico } from '../lib/marcacoes.utils';
+import { MarcacaoRapidaData } from '../App';
 
-interface VagaDia {
-  data: string;
+interface CalendarioProps {
+  onMarcacaoRapida?: (data: MarcacaoRapidaData) => void;
+  onNavigate?: (page: 'marcacao') => void;
+}
+
+interface VagaDia extends AgendaCellData {
   medico_id: string;
-  medico_nome: string;
-  vagas_totais: number;
-  vagas_preenchidas: number;
 }
 
 type NotificationState = {
@@ -16,13 +22,15 @@ type NotificationState = {
   message: string;
 } | null;
 
-export function Calendario() {
+export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
   const [mesAtual, setMesAtual] = useState(new Date());
   const [vagasPorDia, setVagasPorDia] = useState<Map<string, VagaDia[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [filterMedico, setFilterMedico] = useState('');
   const [medicos, setMedicos] = useState<{ id: string; nome: string }[]>([]);
   const [notification, setNotification] = useState<NotificationState>(null);
+
+  const { carregarBloqueios, verificarDiaBloqueado } = useBloqueios();
 
   useEffect(() => {
     loadMedicos();
@@ -47,25 +55,39 @@ export function Calendario() {
       const dataInicio = primeiroDia.toISOString().split('T')[0];
       const dataFim = ultimoDia.toISOString().split('T')[0];
 
+      // Carregar bloqueios do período
+      await carregarBloqueios(dataInicio, dataFim);
+
+      // Fetch vagas
       const { data: vagas } = await supabase
         .from('vagas_dia')
         .select('*, medico:medicos(nome)')
         .gte('data', dataInicio)
         .lte('data', dataFim);
 
+      // Fetch modalidades dos médicos
+      const { data: modalidades } = await supabase
+        .from('codigos_aghu')
+        .select('medico_id, modalidade')
+        .eq('ativo', true);
+
+      // Criar map de medico_id -> modalidade (pega a primeira ativa)
+      const modalidadesPorMedico = new Map<string, string>();
+      modalidades?.forEach((m: any) => {
+        if (!modalidadesPorMedico.has(m.medico_id)) {
+          modalidadesPorMedico.set(m.medico_id, m.modalidade);
+        }
+      });
+
+      // Fetch marcações
       const { data: marcacoes } = await supabase
         .from('marcacoes')
         .select('data, medico_id, status')
         .gte('data', dataInicio)
         .lte('data', dataFim);
 
-      const marcacoesPorMedicoPorDia = new Map<string, number>();
-      marcacoes?.forEach((m) => {
-        if (m.status !== 'cancelado') {
-          const key = `${m.data}-${m.medico_id}`;
-          marcacoesPorMedicoPorDia.set(key, (marcacoesPorMedicoPorDia.get(key) || 0) + 1);
-        }
-      });
+      // Agrupar marcações por médico e dia (apenas as que ocupam vaga)
+      const marcacoesPorMedicoPorDia = agruparMarcacoesPorDiaMedico(marcacoes || []);
 
       const vagasMap = new Map<string, VagaDia[]>();
 
@@ -76,7 +98,8 @@ export function Calendario() {
         const vagaDia: VagaDia = {
           data: vaga.data,
           medico_id: vaga.medico_id,
-          medico_nome: vaga.medico.nome,
+          medicoNome: vaga.medico.nome,
+          modalidade: modalidadesPorMedico.get(vaga.medico_id),
           vagas_totais: vaga.vagas_totais,
           vagas_preenchidas: preenchidas,
         };
@@ -231,78 +254,80 @@ export function Calendario() {
               const vagasDoDia = filteredVagas.get(dataStr) || [];
               const ehMesAtual = dia.getMonth() === mesAtual.getMonth();
               const ehHoje = dataStr === new Date().toISOString().split('T')[0];
+              const ehFimDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
+
+              // Criar map de bloqueios por médico para este dia
+              const bloqueiosPorMedico = new Map();
+              vagasDoDia.forEach((vaga) => {
+                const bloqueio = verificarDiaBloqueado(vaga.medico_id, dataStr);
+                if (bloqueio) {
+                  bloqueiosPorMedico.set(vaga.medico_id, bloqueio);
+                }
+              });
 
               return (
-                <div
+                <AgendaCell
                   key={index}
-                  className={`min-h-40 rounded-xl border-2 p-3 transition-all ${
-                    ehMesAtual
-                      ? ehHoje
-                        ? 'bg-orange-50 border-orange-300 shadow-lg'
-                        : 'bg-white border-gray-200 hover:border-orange-200 hover:shadow-md'
-                      : 'bg-gray-50 border-gray-100 text-gray-400'
-                  }`}
-                >
-                  <div className={`text-lg font-bold mb-3 ${ehMesAtual ? 'text-gray-800' : 'text-gray-400'}`}>
-                    {dia.getDate()}
-                  </div>
-
-                  {ehHoje && <div className="text-xs font-semibold text-orange-600 mb-2">Hoje</div>}
-
-                  {vagasDoDia.length > 0 && ehMesAtual && (
-                    <div className="space-y-3">
-                      {vagasDoDia.map((vaga) => (
-                        <div key={vaga.medico_id} className="text-xs">
-                          <div className="font-semibold text-gray-700 mb-2 leading-tight h-8 flex items-center">
-                            <span className="truncate" title={vaga.medico_nome}>
-                              {vaga.medico_nome}
-                            </span>
-                          </div>
-                          <div className="flex gap-1.5 flex-wrap">
-                            {Array.from({ length: vaga.vagas_totais }).map((_, i) => (
-                              <div
-                                key={i}
-                                className={`w-5 h-5 rounded-md border-2 transition-all transform hover:scale-110 ${
-                                  i < vaga.vagas_preenchidas
-                                    ? 'bg-orange-500 border-orange-600 shadow-sm'
-                                    : 'bg-white border-gray-300 hover:border-orange-300'
-                                }`}
-                                title={
-                                  i < vaga.vagas_preenchidas ? 'Vaga preenchida' : 'Vaga disponível'
-                                }
-                              />
-                            ))}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {vaga.vagas_preenchidas} / {vaga.vagas_totais}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {vagasDoDia.length === 0 && ehMesAtual && (
-                    <div className="text-xs text-gray-400 italic">Sem vagas</div>
-                  )}
-                </div>
+                  data={dia}
+                  vagasDoDia={vagasDoDia}
+                  ehMesAtual={ehMesAtual}
+                  ehHoje={ehHoje}
+                  ehFimDeSemana={ehFimDeSemana}
+                  esFeriado={false}
+                  bloqueiosPorMedico={bloqueiosPorMedico}
+                  onMarcacaoRapida={onMarcacaoRapida}
+                  onNavigar={onNavigate}
+                />
               );
             })}
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-white border-2 border-gray-300 rounded-md"></div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Legenda de Vagas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Vaga Disponível */}
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 bg-white border-2 border-gray-300 rounded-md flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">
+                  □
+                </div>
                 <div>
                   <p className="font-medium text-gray-700">Vaga disponível</p>
-                  <p className="text-xs text-gray-500">Clique na aba Marcação para reservar</p>
+                  <p className="text-xs text-gray-500">Espaço aberto para marcação</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-orange-500 border-2 border-orange-600 rounded-md"></div>
+
+              {/* Vaga Preenchida */}
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 bg-orange-500 border-2 border-orange-600 rounded-md flex items-center justify-center text-xs font-bold text-white mt-0.5">
+                  ■
+                </div>
                 <div>
                   <p className="font-medium text-gray-700">Vaga preenchida</p>
                   <p className="text-xs text-gray-500">Marcação realizada</p>
+                </div>
+              </div>
+
+              {/* Bloqueios por motivo */}
+              {Object.entries(motivosBloqueio).map(([key, motivo]) => (
+                <div key={key} className="flex items-start gap-3">
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold mt-0.5 ${motivo.color}`}>
+                    {motivo.icon}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700">{motivo.label}</p>
+                    <p className="text-xs text-gray-500">Bloqueio por {motivo.label.toLowerCase()}</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Feriado */}
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 bg-red-500 rounded-md flex items-center justify-center text-xs font-bold text-white mt-0.5">
+                  🔴
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Feriado</p>
+                  <p className="text-xs text-gray-500">Sem atendimento</p>
                 </div>
               </div>
             </div>

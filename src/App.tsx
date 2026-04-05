@@ -9,8 +9,18 @@ import { Calendario } from './pages/Calendario';
 
 type Page = 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario';
 
+/**
+ * Dados de pré-preenchimento para marcação rápida vindo da agenda
+ */
+export interface MarcacaoRapidaData {
+  data: string;
+  medico_id: string;
+  modalidade: string;
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const [marcacaoRapidaData, setMarcacaoRapidaData] = useState<MarcacaoRapidaData | null>(null);
 
   function renderPage() {
     switch (currentPage) {
@@ -21,18 +31,24 @@ function App() {
       case 'vagas':
         return <Vagas />;
       case 'marcacao':
-        return <Marcacao />;
+        return <Marcacao precheckedData={marcacaoRapidaData} onClear={() => setMarcacaoRapidaData(null)} />;
       case 'marcacoes':
         return <Marcacoes />;
       case 'calendario':
-        return <Calendario />;
+        return <Calendario onMarcacaoRapida={setMarcacaoRapidaData} onNavigate={setCurrentPage} />;
       default:
         return <Dashboard />;
     }
   }
 
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+    <Layout currentPage={currentPage} onNavigate={(page) => {
+      setCurrentPage(page);
+      // Limpar dados de marcação rápida se navegar para fora da marcação
+      if (page !== 'marcacao') {
+        setMarcacaoRapidaData(null);
+      }
+    }}>
       {renderPage()}
     </Layout>
   );

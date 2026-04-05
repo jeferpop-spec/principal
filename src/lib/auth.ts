@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { Database } from './database.types';
 
 export type UserRole = 'admin' | 'medico' | 'atendente' | 'visualizador';
 
@@ -26,7 +27,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 
     if (!user) return null;
 
-    const { data } = await supabase.from('user_roles').select('*').eq('user_id', user.id).maybeSingle();
+    const { data } = await supabase.from('user_roles').select('*').eq('user_id', user.id).maybeSingle() as { data: Database['public']['Tables']['user_roles']['Row'] | null };
 
     if (data) {
       return {
@@ -82,7 +83,7 @@ export async function createUserWithRole(email: string, password: string, role: 
         role,
         ativo: true,
       },
-    ]);
+    ] as Database['public']['Tables']['user_roles']['Insert'][]);
 
     if (roleError) throw roleError;
 
@@ -96,7 +97,7 @@ export async function createUserWithRole(email: string, password: string, role: 
 // Função para atualizar role do usuário
 export async function updateUserRole(userId: string, newRole: UserRole) {
   try {
-    const { error } = await supabase.from('user_roles').update({ role: newRole }).eq('user_id', userId);
+    const { error } = await supabase.from('user_roles').update({ role: newRole } as Database['public']['Tables']['user_roles']['Update']).eq('user_id', userId);
 
     if (error) throw error;
 
@@ -110,7 +111,7 @@ export async function updateUserRole(userId: string, newRole: UserRole) {
 // Função para desativar usuário
 export async function deactivateUser(userId: string) {
   try {
-    const { error } = await supabase.from('user_roles').update({ ativo: false }).eq('user_id', userId);
+    const { error } = await supabase.from('user_roles').update({ ativo: false } as Database['public']['Tables']['user_roles']['Update']).eq('user_id', userId);
 
     if (error) throw error;
 

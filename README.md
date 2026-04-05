@@ -27,7 +27,7 @@ Sistema web profissional, responsivo e totalmente funcional para gestão de vaga
 - Validação de duplicidade (um médico não pode ter duas configurações na mesma data)
 - Filtros por data e médico
 - Edição e exclusão de configurações
-- Notificações inteligentes
+- Notificações inteligentes 
 
 ### 4. Marcação (Sistema Inteligente)
 - Formulário inteligente com filtros em cascata:

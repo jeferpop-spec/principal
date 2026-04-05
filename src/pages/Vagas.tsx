@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, CreditCard as Edit2, Trash2, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
 
 interface Medico {
@@ -65,11 +66,11 @@ export function Vagas() {
 
     try {
       if (editingId) {
-        const { error } = await supabase.from('vagas_dia').update(formData).eq('id', editingId);
+        const { error } = await supabase.from('vagas_dia').update(formData as Database['public']['Tables']['vagas_dia']['Update']).eq('id', editingId);
         if (error) throw error;
         setNotification({ type: 'success', message: 'Vagas atualizadas com sucesso!' });
       } else {
-        const { error } = await supabase.from('vagas_dia').insert([formData]);
+        const { error } = await supabase.from('vagas_dia').insert([formData] as Database['public']['Tables']['vagas_dia']['Insert'][]);
         if (error) {
           if (error.code === '23505') {
             setNotification({

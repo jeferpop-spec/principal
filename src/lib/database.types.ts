@@ -91,6 +91,8 @@ export interface Database {
           codigo_aghu: string
           status: string
           created_at: string
+          cancelled_at: string | null
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -101,6 +103,8 @@ export interface Database {
           codigo_aghu: string
           status?: string
           created_at?: string
+          cancelled_at?: string | null
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -111,6 +115,75 @@ export interface Database {
           codigo_aghu?: string
           status?: string
           created_at?: string
+          cancelled_at?: string | null
+          user_id?: string | null
+        }
+      }
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role: string
+          ativo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role: string
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: string
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      bloqueios_agenda: {
+        Row: {
+          id: string
+          medico_id: string
+          data_inicio: string
+          data_fim: string
+          motivo: string
+          descricao: string | null
+          observacoes: string | null
+          ativo: boolean
+          criado_por: string | null
+          criado_em: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: string
+          medico_id: string
+          data_inicio: string
+          data_fim: string
+          motivo: string
+          descricao?: string | null
+          observacoes?: string | null
+          ativo?: boolean
+          criado_por?: string | null
+          criado_em?: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: string
+          medico_id?: string
+          data_inicio?: string
+          data_fim?: string
+          motivo?: string
+          descricao?: string | null
+          observacoes?: string | null
+          ativo?: boolean
+          criado_por?: string | null
+          criado_em?: string
+          atualizado_em?: string
         }
       }
     }

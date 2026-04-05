@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Trash2, Search, Calendar } from 'lucide-react';
+import { Trash2, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Notification, NotificationType } from '../components/Notification';
+import { statusOcupaVaga } from '../lib/marcacoes.utils';
 
 interface Marcacao {
   id: string;
@@ -158,8 +159,9 @@ export function Marcacoes() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">Todos</option>
-              <option value="agendado">Agendado</option>
-              <option value="confirmado">Confirmado</option>
+              <option value="marcado">Marcado</option>
+              <option value="faltou">Faltou</option>
+              <option value="realizado">Realizado</option>
               <option value="cancelado">Cancelado</option>
             </select>
           </div>
@@ -181,13 +183,14 @@ export function Marcacoes() {
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Modalidade</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Especialidade</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Ocupa Vaga</th>
               <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredMarcacoes.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   Nenhuma marcação encontrada
                 </td>
               </tr>
@@ -203,14 +206,27 @@ export function Marcacoes() {
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        marcacao.status === 'agendado'
+                        marcacao.status === 'marcado'
                           ? 'bg-blue-100 text-blue-800'
-                          : marcacao.status === 'confirmado'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
+                          : marcacao.status === 'faltou'
+                            ? 'bg-red-100 text-red-800'
+                            : marcacao.status === 'realizado'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {marcacao.status.charAt(0).toUpperCase() + marcacao.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        statusOcupaVaga(marcacao.status)
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {statusOcupaVaga(marcacao.status) ? 'Sim' : 'Não'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">

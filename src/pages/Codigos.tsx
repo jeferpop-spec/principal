@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, CreditCard as Edit2, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
 
 interface Medico {
@@ -71,10 +72,10 @@ export function Codigos() {
 
     try {
       if (editingId) {
-        await supabase.from('codigos_aghu').update(formData).eq('id', editingId);
+        await supabase.from('codigos_aghu').update(formData as Database['public']['Tables']['codigos_aghu']['Update']).eq('id', editingId);
         setNotification({ type: 'success', message: 'Código atualizado com sucesso!' });
       } else {
-        await supabase.from('codigos_aghu').insert([formData]);
+        await supabase.from('codigos_aghu').insert([formData] as Database['public']['Tables']['codigos_aghu']['Insert'][]);
         setNotification({ type: 'success', message: 'Código cadastrado com sucesso!' });
       }
 
