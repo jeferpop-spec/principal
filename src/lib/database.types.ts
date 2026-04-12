@@ -63,6 +63,7 @@ export interface Database {
           id: string
           data: string
           medico_id: string
+          turno: string
           vagas_totais: number
           created_at: string
         }
@@ -70,6 +71,7 @@ export interface Database {
           id?: string
           data: string
           medico_id: string
+          turno: string
           vagas_totais: number
           created_at?: string
         }
@@ -77,6 +79,7 @@ export interface Database {
           id?: string
           data?: string
           medico_id?: string
+          turno?: string
           vagas_totais?: number
           created_at?: string
         }
@@ -86,6 +89,7 @@ export interface Database {
           id: string
           data: string
           medico_id: string
+          turno: string
           modalidade: string
           especialidade: string
           codigo_aghu: string
@@ -98,6 +102,7 @@ export interface Database {
           id?: string
           data: string
           medico_id: string
+          turno: string
           modalidade: string
           especialidade: string
           codigo_aghu: string
@@ -110,6 +115,7 @@ export interface Database {
           id?: string
           data?: string
           medico_id?: string
+          turno?: string
           modalidade?: string
           especialidade?: string
           codigo_aghu?: string
@@ -148,7 +154,7 @@ export interface Database {
       bloqueios_agenda: {
         Row: {
           id: string
-          medico_id: string
+          medico_id: string | null
           data_inicio: string
           data_fim: string
           motivo: string
@@ -161,7 +167,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          medico_id: string
+          medico_id?: string | null
           data_inicio: string
           data_fim: string
           motivo: string
@@ -174,7 +180,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          medico_id?: string
+          medico_id?: string | null
           data_inicio?: string
           data_fim?: string
           motivo?: string

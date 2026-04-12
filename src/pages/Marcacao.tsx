@@ -3,6 +3,7 @@ import { CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
+import { STATUS_OCUPAM_VAGA } from '../lib/marcacoes.utils';
 import { MarcacaoRapidaData } from '../App';
 
 interface Medico {
@@ -13,6 +14,7 @@ interface Medico {
 interface FormData {
   data: string;
   medico_id: string;
+  turno: string;
   modalidade: string;
   especialidade: string;
   codigo_aghu: string;
@@ -42,6 +44,7 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
   const [formData, setFormData] = useState<FormData>({
     data: '',
     medico_id: '',
+    turno: 'manha',
     modalidade: '',
     especialidade: '',
     codigo_aghu: '',
@@ -61,6 +64,7 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
         ...prev,
         data: precheckedData.data,
         medico_id: precheckedData.medico_id,
+        turno: precheckedData.turno || 'manha',
         modalidade: precheckedData.modalidade,
         especialidade: '', // Será preenchido automaticamente pelo changehandler
         codigo_aghu: '',
@@ -99,12 +103,12 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
   }, [formData.especialidade, allCodigos]);
 
   useEffect(() => {
-    if (formData.data && formData.medico_id) {
+    if (formData.data && formData.medico_id && formData.turno) {
       checkVagasDisponiveis();
     } else {
       setVagasDisponiveis(null);
     }
-  }, [formData.data, formData.medico_id]);
+  }, [formData.data, formData.medico_id, formData.turno]);
 
   async function loadMedicos() {
     try {
@@ -117,9 +121,16 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
 
   async function loadAllCodigos() {
     try {
-      const { data } = await supabase.from('codigos_aghu').select('medico_id, modalidade, especialidade, codigo_aghu').eq('ativo', true);
+      const { data, error } = await supabase.from('codigos_aghu').select('medico_id, modalidade, exame, codigo_aghu').eq('ativo', true);
+      if (error) throw error;
       if (data) {
-        setAllCodigos(data as CodigoInfo[]);
+        const mappedData = data.map((c: any) => ({
+          medico_id: c.medico_id,
+          modalidade: c.modalidade,
+          especialidade: c.exame,
+          codigo_aghu: c.codigo_aghu
+        }));
+        setAllCodigos(mappedData as CodigoInfo[]);
       }
     } catch (error) {
       console.error('Erro ao carregar códigos:', error);
@@ -166,6 +177,7 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
         .select('vagas_totais')
         .eq('data', formData.data)
         .eq('medico_id', formData.medico_id)
+        .eq('turno', formData.turno)
         .maybeSingle() as { data: { vagas_totais: number } | null };
 
       if (!vagaConfig) {
@@ -178,7 +190,8 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
         .select('id', { count: 'exact' })
         .eq('data', formData.data)
         .eq('medico_id', formData.medico_id)
-        .eq('status', 'agendado');
+        .eq('turno', formData.turno)
+        .in('status', STATUS_OCUPAM_VAGA as unknown as string[]);
 
       const ocupadas = count || 0;
       const disponiveis = vagaConfig.vagas_totais - ocupadas;
@@ -239,6 +252,7 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
       setFormData({
         data: '',
         medico_id: '',
+        turno: 'manha',
         modalidade: '',
         especialidade: '',
         codigo_aghu: '',
@@ -314,6 +328,19 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
                   {medico.nome}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Turno</label>
+            <select
+              value={formData.turno}
+              onChange={(e) => setFormData({ ...formData, turno: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              required
+            >
+              <option value="manha">Manhã</option>
+              <option value="tarde">Tarde</option>
             </select>
           </div>
 

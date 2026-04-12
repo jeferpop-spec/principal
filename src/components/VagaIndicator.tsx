@@ -33,18 +33,18 @@ const statusSymbols: Record<VagaStatus, string> = {
  * Retorna as classes de cor baseado no status individual da vaga
  */
 function getBoxStatusClasses(boxStatus: VagaStatus): string {
-  const baseClasses = 'rounded border-1.5 transition-all flex items-center justify-center font-bold';
+  const baseClasses = 'rounded-md border text-center leading-none select-none transition-all flex items-center justify-center font-semibold';
 
   switch (boxStatus) {
     case 'ocupada':
-      return `${baseClasses} bg-orange-500 border-orange-600 text-white shadow-sm`;
+      return `${baseClasses} bg-orange-600 border-orange-600 text-white shadow-sm`;
     case 'bloqueada':
       return `${baseClasses} bg-red-100 border-red-300 text-red-700`;
     case 'feriado':
-      return `${baseClasses} bg-red-500 border-red-600 text-white`;
+      return `${baseClasses} bg-red-600 border-red-700 text-white`;
     case 'livre':
     default:
-      return `${baseClasses} bg-white border-gray-400 text-gray-600`;
+      return `${baseClasses} bg-white border-slate-300 text-slate-700`;
   }
 }
 
@@ -54,12 +54,12 @@ function getBoxStatusClasses(boxStatus: VagaStatus): string {
 function getSizeClasses(size: 'sm' | 'md' | 'lg'): string {
   switch (size) {
     case 'sm':
-      return 'w-5 h-5 text-xs';
+      return 'w-4 h-4 text-[0.55rem] rounded-[4px] border-[1.5px]';
     case 'lg':
       return 'w-8 h-8 text-base';
     case 'md':
     default:
-      return 'w-6 h-6 text-sm';
+      return 'w-6 h-6 text-xs rounded-md border-2';
   }
 }
 
@@ -112,14 +112,8 @@ export function VagaIndicator({
 
       {/* Label com contagem - mostra proporção visualmente */}
       {showLabel && !isBloqueadaOuFeriado && (
-        <div className="text-xs text-gray-700 font-semibold">
+        <div className="text-xs font-semibold text-slate-700 tracking-[0.02em]">
           {preenchidas}/{total}
-          {(() => {
-            if (preenchidas === 0) return ' - Todos livres';
-            if (preenchidas === total) return ' - Lotada';
-            if (preenchidas < total) return ' - Disponível';
-            return '';
-          })()}
         </div>
       )}
 

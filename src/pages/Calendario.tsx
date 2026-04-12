@@ -15,6 +15,7 @@ interface CalendarioProps {
 
 interface VagaDia extends AgendaCellData {
   medico_id: string;
+  turno: string;
 }
 
 type NotificationState = {
@@ -27,7 +28,10 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
   const [vagasPorDia, setVagasPorDia] = useState<Map<string, VagaDia[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [filterMedico, setFilterMedico] = useState('');
+  const [filterModalidade, setFilterModalidade] = useState('');
+  const [filterTurno, setFilterTurno] = useState('');
   const [medicos, setMedicos] = useState<{ id: string; nome: string }[]>([]);
+  const [modalidades, setModalidades] = useState<string[]>([]);
   const [notification, setNotification] = useState<NotificationState>(null);
 
   const { carregarBloqueios, verificarDiaBloqueado } = useBloqueios();
@@ -73,16 +77,23 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
 
       // Criar map de medico_id -> modalidade (pega a primeira ativa)
       const modalidadesPorMedico = new Map<string, string>();
+      const todasModalidades = new Set<string>();
+      
       modalidades?.forEach((m: any) => {
         if (!modalidadesPorMedico.has(m.medico_id)) {
           modalidadesPorMedico.set(m.medico_id, m.modalidade);
         }
+        if (m.modalidade) {
+          todasModalidades.add(m.modalidade);
+        }
       });
+      
+      setModalidades(Array.from(todasModalidades).sort());
 
       // Fetch marcações
       const { data: marcacoes } = await supabase
         .from('marcacoes')
-        .select('data, medico_id, status')
+        .select('data, medico_id, status, turno')
         .gte('data', dataInicio)
         .lte('data', dataFim);
 
@@ -92,7 +103,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
       const vagasMap = new Map<string, VagaDia[]>();
 
       vagas?.forEach((vaga: any) => {
-        const key = `${vaga.data}-${vaga.medico_id}`;
+        const key = `${vaga.data}-${vaga.medico_id}-${vaga.turno}`;
         const preenchidas = marcacoesPorMedicoPorDia.get(key) || 0;
 
         const vagaDia: VagaDia = {
@@ -102,6 +113,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
           modalidade: modalidadesPorMedico.get(vaga.medico_id),
           vagas_totais: vaga.vagas_totais,
           vagas_preenchidas: preenchidas,
+          turno: vaga.turno,
         };
 
         if (!vagasMap.has(vaga.data)) {
@@ -164,9 +176,14 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
   const dias = getDiasDoMes();
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-  const filteredVagas = filterMedico
+  const filteredVagas = filterMedico || filterModalidade
     ? Array.from(vagasPorDia).reduce((acc, [date, vagas]) => {
-        const filtered = vagas.filter((v) => v.medico_id === filterMedico);
+        const filtered = vagas.filter((v) => {
+          const matchMedico = !filterMedico || v.medico_id === filterMedico;
+          const matchModalidade = !filterModalidade || v.modalidade === filterModalidade;
+          const matchTurno = !filterTurno || v.turno === filterTurno;
+          return matchMedico && matchModalidade && matchTurno;
+        });
         if (filtered.length > 0) {
           acc.set(date, filtered);
         }
@@ -221,34 +238,59 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
               </button>
             </div>
 
-            <select
-              value={filterMedico}
-              onChange={(e) => setFilterMedico(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-700"
-            >
-              <option value="">Todos os médicos</option>
-              {medicos.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nome}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <select
+                value={filterTurno}
+                onChange={(e) => setFilterTurno(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-700 flex-1 md:flex-none"
+              >
+                <option value="">Ambos os turnos</option>
+                <option value="manha">Somente Manhã</option>
+                <option value="tarde">Somente Tarde</option>
+              </select>
+
+              <select
+                value={filterModalidade}
+                onChange={(e) => setFilterModalidade(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-700 flex-1 md:flex-none"
+              >
+                <option value="">Todas as modalidades</option>
+                {modalidades.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterMedico}
+                onChange={(e) => setFilterMedico(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-700 flex-1 md:flex-none"
+              >
+                <option value="">Todos os médicos</option>
+                {medicos.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-7 gap-3 mb-4">
+          <div className="grid grid-cols-7 gap-4 mb-4">
             {diasSemana.map((dia) => (
               <div
                 key={dia}
-                className="text-center font-bold text-gray-600 py-3 text-sm md:text-base bg-gray-50 rounded-lg"
+                className="text-center font-semibold text-slate-500 uppercase tracking-[0.2em] py-3 text-[11px] bg-slate-50 rounded-2xl"
               >
                 {dia}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-3 auto-rows-max">
+          <div className="grid grid-cols-7 gap-4 auto-rows-[240px]">
             {dias.map((dia, index) => {
               const dataStr = dia.toISOString().split('T')[0];
               const vagasDoDia = filteredVagas.get(dataStr) || [];
@@ -257,13 +299,17 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
               const ehFimDeSemana = dia.getDay() === 0 || dia.getDay() === 6;
 
               // Criar map de bloqueios por médico para este dia
-              const bloqueiosPorMedico = new Map();
+              const bloqueiosPorMedico = new Map<string, any>();
               vagasDoDia.forEach((vaga) => {
                 const bloqueio = verificarDiaBloqueado(vaga.medico_id, dataStr);
                 if (bloqueio) {
                   bloqueiosPorMedico.set(vaga.medico_id, bloqueio);
                 }
               });
+
+              // Verificar se é feriado global
+              const globalBlock = verificarDiaBloqueado('global', dataStr);
+              const ehFeriado = globalBlock?.motivo === 'feriado';
 
               return (
                 <AgendaCell
@@ -273,7 +319,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
                   ehMesAtual={ehMesAtual}
                   ehHoje={ehHoje}
                   ehFimDeSemana={ehFimDeSemana}
-                  esFeriado={false}
+                  esFeriado={ehFeriado}
                   bloqueiosPorMedico={bloqueiosPorMedico}
                   onMarcacaoRapida={onMarcacaoRapida}
                   onNavigar={onNavigate}

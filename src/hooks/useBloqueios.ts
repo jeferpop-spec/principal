@@ -71,10 +71,11 @@ export function useBloqueios(): UseBloqueiosReturn {
         // Organizar por médico
         const porMedico = new Map<string, BloqueioAgenda[]>();
         bloqueiosCarregados.forEach((bloqueio) => {
-          if (!porMedico.has(bloqueio.medico_id)) {
-            porMedico.set(bloqueio.medico_id, []);
+          const medId = bloqueio.medico_id || 'global';
+          if (!porMedico.has(medId)) {
+            porMedico.set(medId, []);
           }
-          porMedico.get(bloqueio.medico_id)?.push(bloqueio);
+          porMedico.get(medId)?.push(bloqueio);
         });
         setBloqueiosPorMedico(porMedico);
 
@@ -86,7 +87,8 @@ export function useBloqueios(): UseBloqueiosReturn {
 
           while (dataAtual <= dataFimBloquio) {
             const dataStr = dataAtual.toISOString().split('T')[0];
-            const key = `${dataStr}-${bloqueio.medico_id}`;
+            const medId = bloqueio.medico_id || 'global';
+            const key = `${dataStr}-${medId}`;
             const diasRestantes = Math.ceil(
               (dataFimBloquio.getTime() - dataAtual.getTime()) / (1000 * 60 * 60 * 24)
             );
@@ -131,7 +133,7 @@ export function useBloqueios(): UseBloqueiosReturn {
         const { data, error: err } = await supabase
           .from('bloqueios_agenda')
           .select('*')
-          .eq('medico_id', medicoId)
+          .or(`medico_id.eq.${medicoId},medico_id.is.null`)
           .eq('ativo', true)
           .gte('data_fim', dataInicio)
           .lte('data_inicio', dataFim)
@@ -175,8 +177,9 @@ export function useBloqueios(): UseBloqueiosReturn {
         // Atualizar mapa por médico
         setBloqueiosPorMedico((prev) => {
           const novo = new Map(prev);
-          const lista = novo.get(bloqueioData.medico_id) || [];
-          novo.set(bloqueioData.medico_id, [novoBloqueio, ...lista]);
+          const medId = bloqueioData.medico_id || 'global';
+          const lista = novo.get(medId) || [];
+          novo.set(medId, [novoBloqueio, ...lista]);
           return novo;
         });
 
@@ -268,13 +271,18 @@ export function useBloqueios(): UseBloqueiosReturn {
     [carregarBloqueios]
   );
 
-  /**
-   * Verifica se um dia específico está bloqueado para um médico
-   */
   const verificarDiaBloqueado = useCallback(
     (medicoId: string, data: string): BloqueioAgenda | null => {
-      const key = `${data}-${medicoId}`;
-      const diaBloqueado = diasBloqueados.get(key);
+      // 1. Verifica se há bloqueio global no dia
+      const globalKey = `${data}-global`;
+      let diaBloqueado = diasBloqueados.get(globalKey);
+      
+      // 2. Se não houver global, verifica específico do médico
+      if (!diaBloqueado) {
+        const key = `${data}-${medicoId}`;
+        diaBloqueado = diasBloqueados.get(key);
+      }
+      
       return diaBloqueado ? diaBloqueado.bloqueio : null;
     },
     [diasBloqueados]
@@ -291,8 +299,13 @@ export function useBloqueios(): UseBloqueiosReturn {
 
       while (dataAtual <= dataFinalObj) {
         const dataStr = dataAtual.toISOString().split('T')[0];
+        const globalKey = `${dataStr}-global`;
         const key = `${dataStr}-${medicoId}`;
-        const diaBloqueado = diasBloqueados.get(key);
+        let diaBloqueado = diasBloqueados.get(globalKey);
+
+        if (!diaBloqueado) {
+          diaBloqueado = diasBloqueados.get(key);
+        }
 
         if (diaBloqueado) {
           dias.push(diaBloqueado);
@@ -312,8 +325,10 @@ export function useBloqueios(): UseBloqueiosReturn {
   const verificarConflito = useCallback(
     (medicoId: string, dataInicio: string, dataFim: string, excludeBloqueioId?: string): boolean => {
       const bloqueiosMedico = bloqueiosPorMedico.get(medicoId) || [];
+      const bloqueiosGlobais = bloqueiosPorMedico.get('global') || [];
+      const todosBloqueios = [...bloqueiosMedico, ...bloqueiosGlobais];
 
-      return bloqueiosMedico.some((bloqueio) => {
+      return todosBloqueios.some((bloqueio) => {
         if (excludeBloqueioId && bloqueio.id === excludeBloqueioId) {
           return false;
         }

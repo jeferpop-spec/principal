@@ -7,8 +7,7 @@
  */
 
 import { VagaIndicator, VagaStatus } from './VagaIndicator';
-import { BloqueioIndicator } from './BloqueioIndicator';
-import { BloqueioAgenda } from '../lib/bloqueios.types';
+import { BloqueioAgenda, motivosBloqueio } from '../lib/bloqueios.types';
 import { calcularEstadoCelula } from '../lib/agenda.utils';
 import { MarcacaoRapidaData } from '../App';
 
@@ -42,12 +41,25 @@ function getBackgroundColor(ehHoje: boolean, ehMesAtual: boolean, esFeriado: boo
     return 'bg-red-50 border-red-300';
   }
   if (ehHoje) {
-    return 'bg-blue-50 border-blue-400 shadow-md';
+    return 'bg-blue-50 border-blue-400 shadow-sm';
   }
   if (ehMesAtual) {
-    return 'bg-white border-gray-300';
+    return 'bg-white border-slate-200';
   }
-  return 'bg-gray-50 border-gray-200 text-gray-400';
+  return 'bg-slate-50 border-slate-200 text-slate-400';
+}
+
+function getBloqueioLabel(bloqueio: BloqueioAgenda) {
+  const motivo = motivosBloqueio[bloqueio.motivo];
+
+  if (bloqueio.motivo === 'ferias') {
+    return { icon: '🔴', label: 'FÉRIAS' };
+  }
+
+  return {
+    icon: '⛔',
+    label: motivo.label.toUpperCase(),
+  };
 }
 
 /**
@@ -107,6 +119,7 @@ export function AgendaCell({
         data: vaga.data,
         medico_id: vaga.medico_id,
         modalidade: vaga.modalidade || '',
+        turno: vaga.turno || 'manha',
       });
       onNavigar('marcacao');
     }
@@ -125,35 +138,28 @@ export function AgendaCell({
 
   return (
     <div
-      className={`min-h-48 rounded-lg border-2 p-3 transition-all ${bgColor}`}
+      className={`min-h-[180px] rounded-[2rem] border-[2px] border-[#e3e3e3] p-3 md:p-4 transition-all ${
+        ehFimDeSemana || esFeriado || bloqueiosPorMedico.size > 0 ? 'bg-[#e3e3e3]' : 'bg-white'
+      }`}
       data-date={dataStr}
     >
-      {/* Cabeçalho: Data e Indicadores */}
-      <div className="flex items-start justify-between mb-3 pb-2 border-b border-gray-200">
-        <div className={`text-2xl font-bold ${dateColor}`}>{data.getDate()}</div>
+      {/* Cabeçalho: Data e Indicadores (Apenas Data alinhada à esquerda sem borda inferior) */}
+      <div className="flex items-start justify-between mb-3">
+        <div className={`text-xl font-extrabold text-black`}>{data.getDate()}</div>
 
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
           {ehHoje && (
-            <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-500 text-white rounded-full text-xs font-bold" title="Hoje">
-              •
-            </span>
+             <span className="w-2.5 h-2.5 bg-blue-600 rounded-full" title="Hoje"></span>
           )}
           {esFeriado && (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 bg-red-500 text-white rounded text-xs font-semibold" title="Feriado">
-              Feriado
-            </span>
-          )}
-          {isWeekend && !esFeriado && (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 bg-gray-300 text-gray-700 rounded text-xs font-semibold" title="Fim de semana">
-              Fim de semana
-            </span>
+             <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest" title="Feriado">FERIADO</span>
           )}
         </div>
       </div>
 
       {/* Conteúdo: Médicos e suas vagas */}
       {ehMesAtual && vagasDoDia.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {vagasDoDia.map((vaga) => {
             const bloqueio = bloqueiosPorMedico.get(vaga.medico_id);
             const estadoCelula = calcularEstadoCelula(
@@ -162,15 +168,18 @@ export function AgendaCell({
               bloqueio,
               esFeriado
             );
+            const maxVisibleSlots = 8;
+            const slotsDispCount = Math.max(0, Math.min(vaga.vagas_totais - vaga.vagas_preenchidas, maxVisibleSlots));
+            const podeClicarObj = podeClicar(vaga);
 
             return (
               <div
-                key={`${vaga.medico_id}-${vaga.data}`}
+                key={`${vaga.medico_id}-${vaga.data}-${vaga.turno}`}
                 onClick={() => handleClickVaga(vaga)}
-                className={`p-3 rounded-lg border-2 transition-all ${estadoCelula.bgColor} ${estadoCelula.borderColor} ${
-                  podeClicar(vaga)
-                    ? 'cursor-pointer hover:shadow-md hover:border-orange-400 active:shadow-inner'
-                    : 'cursor-not-allowed opacity-75'
+                className={`flex flex-col bg-white border-[2px] border-[#e3e3e3] rounded-2xl py-1 px-1.5 transition-all ${
+                  podeClicarObj
+                    ? 'cursor-pointer hover:shadow-md'
+                    : 'cursor-default opacity-80'
                 }`}
                 role={podeClicar(vaga) ? 'button' : 'region'}
                 tabIndex={podeClicar(vaga) ? 0 : undefined}
@@ -180,45 +189,37 @@ export function AgendaCell({
                     handleClickVaga(vaga);
                   }
                 }}
-                title={
-                  podeClicar(vaga)
-                    ? `Clique para marcar com ${vaga.medicoNome}`
-                    : estadoCelula.isBlocked
-                      ? 'Bloqueado - não é possível marcar'
-                      : 'Lotado - não há vagas disponíveis'
-                }
               >
-                {/* Cabeçalho: Nome do médico */}
-                <div className="font-bold text-gray-800 text-sm mb-1 truncate" title={vaga.medicoNome}>
-                  {vaga.medicoNome}
+                <div className="flex justify-between items-baseline mb-0.5">
+                  <span className="text-[10px] md:text-[11px] font-extrabold uppercase text-black truncate tracking-wide mr-1" title={vaga.medicoNome}>
+                    {vaga.medicoNome}
+                  </span>
+                  <span className={`text-[10px] font-black tracking-tighter px-1 rounded-md border border-[#e3e3e3] ${
+                      vaga.turno === 'manha'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {vaga.turno === 'manha' ? '(M)' : '(T)'}
+                  </span>
                 </div>
+                
+                <div className="flex gap-[3px] mt-0.5 flex-wrap">
+                  {/* Slots ocupados */}
+                  {Array.from({ length: Math.min(vaga.vagas_preenchidas, maxVisibleSlots) }).map((_, i) => (
+                    <div
+                      key={`occ-${i}`}
+                      className="w-3.5 h-3.5 bg-[#ea580c] border border-[#ea580c] rounded-sm"
+                    ></div>
+                  ))}
 
-                {/* Modalidade */}
-                {vaga.modalidade && (
-                  <div className="text-xs text-gray-600 font-medium mb-2">
-                    {vaga.modalidade}
-                  </div>
-                )}
-
-                {/* Indicador de Vagas ou Bloqueio */}
-                <div className="mt-2">
-                  {bloqueio ? (
-                    /* Mostrar indicador de bloqueio */
-                    <BloqueioIndicator
-                      bloqueio={bloqueio}
-                      size="sm"
-                      showDetails={false}
-                    />
-                  ) : (
-                    /* Mostrar quadrinhos de vagas */
-                    <VagaIndicator
-                      total={vaga.vagas_totais}
-                      preenchidas={vaga.vagas_preenchidas}
-                      status="livre"
-                      size="sm"
-                      showLabel={true}
-                    />
-                  )}
+                  {/* Slots disponíveis */}
+                  {Array.from({ length: slotsDispCount }).map((_, i) => (
+                    <div
+                      key={`disp-${i}`}
+                      className="w-3.5 h-3.5 bg-white border border-[#e3e3e3] rounded-sm"
+                    ></div>
+                  ))}
                 </div>
               </div>
             );
@@ -228,22 +229,15 @@ export function AgendaCell({
 
       {/* Mensagem quando não há vagas */}
       {ehMesAtual && vagasDoDia.length === 0 && !esFeriado && (
-        <div className="text-xs text-gray-500 flex items-center justify-center h-12">
-          Sem vagas agendadas
-        </div>
-      )}
-
-      {/* Mensagem para feriado */}
-      {esFeriado && (
-        <div className="text-sm text-red-600 font-bold flex items-center justify-center h-12">
-          🔴 FERIADO
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center mt-6">
+          Sem vagas
         </div>
       )}
 
       {/* Mensagem para dias fora do mês */}
       {!ehMesAtual && (
-        <div className="text-xs text-gray-400 flex items-center justify-center h-12">
-          Outro mês
+        <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wider text-center mt-6">
+          ---
         </div>
       )}
     </div>

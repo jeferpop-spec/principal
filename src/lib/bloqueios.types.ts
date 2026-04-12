@@ -2,7 +2,7 @@
  * Tipos e interfaces para gerenciamento de bloqueios de agenda
  */
 
-export type MotivoBloqueso = 'ferias' | 'licenca' | 'afastamento' | 'abono' | 'indisponibilidade';
+export type MotivoBloqueso = 'ferias' | 'licenca' | 'afastamento' | 'abono' | 'indisponibilidade' | 'feriado';
 
 /**
  * Mapa de motivos com descrições em português
@@ -33,11 +33,16 @@ export const motivosBloqueio: Record<MotivoBloqueso, { label: string; color: str
     color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     icon: '🚫',
   },
+  feriado: {
+    label: 'Feriado',
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    icon: '🎉',
+  },
 };
 
 export interface BloqueioAgenda {
   id: string;
-  medico_id: string;
+  medico_id: string | null;
   data_inicio: string;
   data_fim: string;
   motivo: MotivoBloqueso;
@@ -50,7 +55,7 @@ export interface BloqueioAgenda {
 }
 
 export interface CreateBloqueioDTO {
-  medico_id: string;
+  medico_id?: string | null;
   data_inicio: string;
   data_fim: string;
   motivo: MotivoBloqueso;
@@ -67,7 +72,7 @@ export interface UpdateBloqueioDTO extends Partial<CreateBloqueioDTO> {
  */
 export interface DiaBloqueado {
   data: string;
-  medico_id: string;
+  medico_id: string | null;
   bloqueio: BloqueioAgenda;
   diasRestantes: number; // Dias até final do bloqueio
 }

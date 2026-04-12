@@ -1,11 +1,13 @@
 -- Dados de exemplo para testar o sistema
 
 -- Inserir médicos
-INSERT INTO medicos (nome, ativo) VALUES
-('Dr. Vinicius Silva', true),
-('Dra. Sergio Costa', true),
-('Dra. Maria Santos', true),
-('Dr. João Oliveira', true);
+INSERT INTO medicos (nome, ativo) VAUES
+('MARCELA SILVA VIEIRA', true),
+('CARLOS FERREIRA NETO II', true),
+('MARCELLA ALVES DE FARIAS', true),
+('GALBA LEITE OLIVEIRA', true),
+('IGOR MOTTA DE AQUINO', true),
+('LICIA MARIA RICARTE', true);
 
 -- Inserir códigos AGHU (aguardar IDs dos médicos)
 -- Execute este script via Supabase SQL Editor ou adapte os IDs conforme necessário

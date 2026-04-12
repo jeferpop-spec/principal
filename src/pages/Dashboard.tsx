@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Users, FileText, Calendar, CheckCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
+import { STATUS_OCUPAM_VAGA } from '../lib/marcacoes.utils';
 
 interface Stats {
   totalMedicos: number;
   codigosAtivos: number;
-  vagasHoje: number;
+  vagasMes: number;
   vagasPreenchidas: number;
   taxaOcupacao: number;
 }
@@ -15,7 +16,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     totalMedicos: 0,
     codigosAtivos: 0,
-    vagasHoje: 0,
+    vagasMes: 0,
     vagasPreenchidas: 0,
     taxaOcupacao: 0,
   });
@@ -27,25 +28,27 @@ export function Dashboard() {
 
   async function loadStats() {
     try {
-      const hoje = new Date().toISOString().split('T')[0];
+      const dataHoje = new Date();
+      const primeiroDiaMes = new Date(dataHoje.getFullYear(), dataHoje.getMonth(), 1).toISOString().split('T')[0];
+      const ultimoDiaMes = new Date(dataHoje.getFullYear(), dataHoje.getMonth() + 1, 0).toISOString().split('T')[0];
 
       const [medicosRes, codigosRes, vagasRes, marcacoesRes] = await Promise.all([
         supabase.from('medicos').select('id', { count: 'exact' }).eq('ativo', true),
         supabase.from('codigos_aghu').select('id', { count: 'exact' }).eq('ativo', true),
-        supabase.from('vagas_dia').select('vagas_totais').eq('data', hoje) as { data: { vagas_totais: number }[] | null },
-        supabase.from('marcacoes').select('id', { count: 'exact' }).eq('data', hoje),
+        supabase.from('vagas_dia').select('vagas_totais').gte('data', primeiroDiaMes).lte('data', ultimoDiaMes) as { data: { vagas_totais: number }[] | null },
+        supabase.from('marcacoes').select('id', { count: 'exact' }).gte('data', primeiroDiaMes).lte('data', ultimoDiaMes).in('status', STATUS_OCUPAM_VAGA as unknown as string[]),
       ]);
 
       const totalMedicos = medicosRes.count || 0;
       const codigosAtivos = codigosRes.count || 0;
-      const vagasHoje = vagasRes.data?.reduce((sum, v) => sum + v.vagas_totais, 0) || 0;
+      const vagasMes = vagasRes.data?.reduce((sum, v) => sum + v.vagas_totais, 0) || 0;
       const vagasPreenchidas = marcacoesRes.count || 0;
-      const taxaOcupacao = vagasHoje > 0 ? (vagasPreenchidas / vagasHoje) * 100 : 0;
+      const taxaOcupacao = vagasMes > 0 ? (vagasPreenchidas / vagasMes) * 100 : 0;
 
       setStats({
         totalMedicos,
         codigosAtivos,
-        vagasHoje,
+        vagasMes,
         vagasPreenchidas,
         taxaOcupacao,
       });
@@ -70,8 +73,8 @@ export function Dashboard() {
       color: 'bg-green-500',
     },
     {
-      title: 'Vagas Hoje',
-      value: stats.vagasHoje,
+      title: 'Vagas do Mês',
+      value: stats.vagasMes,
       icon: Calendar,
       color: 'bg-orange-500',
     },
@@ -119,7 +122,9 @@ export function Dashboard() {
                 <div className={`${card.color} p-3 rounded-xl shadow-lg`}>
                   <Icon className="text-white" size={24} />
                 </div>
-                <div className="text-xs font-semibold text-gray-400">Hoje</div>
+                <div className="text-xs font-semibold text-gray-400">
+                  {card.title.includes('Mês') || card.title.includes('Ocupação') || card.title.includes('Preenchidas') ? 'Mês Atual' : 'Hoje'}
+                </div>
               </div>
               <div className="text-4xl font-bold text-gray-900 mb-1">{card.value}</div>
               <div className="text-sm text-gray-600 font-medium">{card.title}</div>

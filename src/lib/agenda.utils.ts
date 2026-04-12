@@ -44,10 +44,10 @@ export function calcularEstadoCelula(
       state: 'feriado',
       bgColor: 'bg-red-100',
       borderColor: 'border-red-400',
-      occupied: 0,
+      occupied: vagas_preenchidas,
       total: vagas_totais,
       isFull: false,
-      isEmpty: false,
+      isEmpty: vagas_preenchidas === 0,
       isBlocked: true,
     };
   }
@@ -56,8 +56,8 @@ export function calcularEstadoCelula(
   if (bloqueio) {
     return {
       state: 'bloqueada',
-      bgColor: 'bg-gray-100',
-      borderColor: 'border-gray-400',
+      bgColor: 'bg-slate-900 text-slate-50',
+      borderColor: 'border-slate-700',
       occupied: 0,
       total: vagas_totais,
       isFull: false,
@@ -81,12 +81,12 @@ export function calcularEstadoCelula(
     borderColor = 'border-red-300';
   } else if (percentualOcupacao > 50) {
     state = 'parcial';
-    bgColor = 'bg-yellow-50';
-    borderColor = 'border-yellow-300';
+    bgColor = 'bg-orange-50';
+    borderColor = 'border-orange-300';
   } else {
     state = 'disponivel';
     bgColor = 'bg-white';
-    borderColor = 'border-gray-200';
+    borderColor = 'border-slate-200';
   }
 
   return {

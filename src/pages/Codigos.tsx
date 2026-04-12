@@ -58,7 +58,12 @@ export function Codigos() {
         supabase.from('medicos').select('*').eq('ativo', true).order('nome'),
       ]);
 
-      if (codigosRes.data) setCodigos(codigosRes.data as unknown as Codigo[]);
+      if (codigosRes.data) {
+        setCodigos(codigosRes.data.map((c: any) => ({
+          ...c,
+          especialidade: c.exame,
+        })) as Codigo[]);
+      }
       if (medicosRes.data) setMedicos(medicosRes.data);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -71,11 +76,19 @@ export function Codigos() {
     e.preventDefault();
 
     try {
+      const payload = {
+        medico_id: formData.medico_id,
+        modalidade: formData.modalidade,
+        exame: formData.especialidade,
+        codigo_aghu: formData.codigo_aghu,
+        ativo: formData.ativo,
+      };
+
       if (editingId) {
-        await supabase.from('codigos_aghu').update(formData as Database['public']['Tables']['codigos_aghu']['Update']).eq('id', editingId);
+        await supabase.from('codigos_aghu').update(payload as any).eq('id', editingId);
         setNotification({ type: 'success', message: 'Código atualizado com sucesso!' });
       } else {
-        await supabase.from('codigos_aghu').insert([formData] as Database['public']['Tables']['codigos_aghu']['Insert'][]);
+        await supabase.from('codigos_aghu').insert([payload] as any[]);
         setNotification({ type: 'success', message: 'Código cadastrado com sucesso!' });
       }
 

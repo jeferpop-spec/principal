@@ -6,8 +6,9 @@ import { Vagas } from './pages/Vagas';
 import { Marcacao } from './pages/Marcacao';
 import { Marcacoes } from './pages/Marcacoes';
 import { Calendario } from './pages/Calendario';
+import { AgendaDia } from './pages/AgendaDia';
 
-type Page = 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario';
+type Page = 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario' | 'agendaDia';
 
 /**
  * Dados de pré-preenchimento para marcação rápida vindo da agenda
@@ -16,6 +17,7 @@ export interface MarcacaoRapidaData {
   data: string;
   medico_id: string;
   modalidade: string;
+  turno: string;
 }
 
 function App() {
@@ -36,6 +38,8 @@ function App() {
         return <Marcacoes />;
       case 'calendario':
         return <Calendario onMarcacaoRapida={setMarcacaoRapidaData} onNavigate={setCurrentPage} />;
+      case 'agendaDia':
+        return <AgendaDia onMarcacaoRapida={setMarcacaoRapidaData} onNavigate={setCurrentPage} />;
       default:
         return <Dashboard />;
     }

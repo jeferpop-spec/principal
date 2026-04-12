@@ -5,7 +5,7 @@
 /**
  * Status de marcação que ocupam vaga
  */
-export const STATUS_OCUPAM_VAGA = ['marcado', 'faltou', 'realizado'] as const;
+export const STATUS_OCUPAM_VAGA = ['agendado', 'marcado', 'faltou', 'realizado'] as const;
 
 /**
  * Status de marcação que não ocupam vaga
@@ -40,16 +40,16 @@ export function filtrarMarcacoesOcupamVaga<T extends { status: string }>(marcaco
 }
 
 /**
- * Agrupa marcações por médico e data, contando apenas as que ocupam vaga
+ * Agrupa marcações por médico e data e turno, contando apenas as que ocupam vaga
  * @param marcacoes - Lista de marcações
- * @returns Map com chave "data-medico_id" e valor sendo o count de marcações que ocupam vaga
+ * @returns Map com chave "data-medico_id-turno" e valor sendo o count de marcações que ocupam vaga
  */
-export function agruparMarcacoesPorDiaMedico(marcacoes: { data: string; medico_id: string; status: string }[]): Map<string, number> {
+export function agruparMarcacoesPorDiaMedico(marcacoes: { data: string; medico_id: string; status: string; turno: string }[]): Map<string, number> {
   const resultado = new Map<string, number>();
 
   marcacoes.forEach(m => {
     if (statusOcupaVaga(m.status)) {
-      const key = `${m.data}-${m.medico_id}`;
+      const key = `${m.data}-${m.medico_id}-${m.turno}`;
       resultado.set(key, (resultado.get(key) || 0) + 1);
     }
   });

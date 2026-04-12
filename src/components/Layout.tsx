@@ -1,20 +1,21 @@
 import { ReactNode } from 'react';
-import { LayoutDashboard, FileText, Calendar, CalendarDays, ClipboardList, ListChecks } from 'lucide-react';
+import { LayoutDashboard, FileText, Calendar, CalendarDays, ClipboardList, ListChecks, Clock } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
-  currentPage: 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario';
-  onNavigate: (page: 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario') => void;
+  currentPage: 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario' | 'agendaDia';
+  onNavigate: (page: 'dashboard' | 'codigos' | 'vagas' | 'marcacao' | 'marcacoes' | 'calendario' | 'agendaDia') => void;
 }
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const menuItems = [
     { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'agendaDia' as const, label: 'Agenda do Dia', icon: Clock },
+    { id: 'calendario' as const, label: 'Calendário', icon: Calendar },
     { id: 'codigos' as const, label: 'Códigos', icon: FileText },
     { id: 'vagas' as const, label: 'Vagas', icon: CalendarDays },
     { id: 'marcacao' as const, label: 'Marcação', icon: ClipboardList },
-    { id: 'marcacoes' as const, label: 'Marcações', icon: ListChecks },
-    { id: 'calendario' as const, label: 'Calendário', icon: Calendar },
+    { id: 'marcacoes' as const, label: 'Ger. Marcações', icon: ListChecks },
   ];
 
   return (

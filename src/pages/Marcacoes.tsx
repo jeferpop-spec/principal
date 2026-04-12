@@ -12,6 +12,7 @@ interface Marcacao {
   especialidade: string;
   codigo_aghu: string;
   status: string;
+  turno: string;
   medico?: {
     nome: string;
   };
@@ -182,6 +183,7 @@ export function Marcacoes() {
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Médico</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Modalidade</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Especialidade</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Turno</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Ocupa Vaga</th>
               <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
@@ -203,6 +205,11 @@ export function Marcacoes() {
                   <td className="px-6 py-4 text-sm text-gray-800">{marcacao.medico?.nome}</td>
                   <td className="px-6 py-4 text-sm text-gray-800">{marcacao.modalidade}</td>
                   <td className="px-6 py-4 text-sm text-gray-800">{marcacao.especialidade}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${marcacao.turno === 'manha' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {marcacao.turno === 'manha' ? 'MANHÃ' : 'TARDE'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
