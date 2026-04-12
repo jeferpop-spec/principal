@@ -69,26 +69,9 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
         .gte('data', dataInicio)
         .lte('data', dataFim);
 
-      // Fetch modalidades dos médicos
-      const { data: modalidades } = await supabase
-        .from('codigos_aghu')
-        .select('medico_id, modalidade')
-        .eq('ativo', true);
-
-      // Criar map de medico_id -> modalidade (pega a primeira ativa)
-      const modalidadesPorMedico = new Map<string, string>();
       const todasModalidades = new Set<string>();
       
-      modalidades?.forEach((m: any) => {
-        if (!modalidadesPorMedico.has(m.medico_id)) {
-          modalidadesPorMedico.set(m.medico_id, m.modalidade);
-        }
-        if (m.modalidade) {
-          todasModalidades.add(m.modalidade);
-        }
-      });
-      
-      setModalidades(Array.from(todasModalidades).sort());
+
 
       // Fetch marcações
       const { data: marcacoes } = await supabase
@@ -105,12 +88,14 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
       vagas?.forEach((vaga: any) => {
         const key = `${vaga.data}-${vaga.medico_id}-${vaga.turno}`;
         const preenchidas = marcacoesPorMedicoPorDia.get(key) || 0;
+        const modalidade = vaga.modalidade || '';
+        if (modalidade) todasModalidades.add(modalidade);
 
         const vagaDia: VagaDia = {
           data: vaga.data,
           medico_id: vaga.medico_id,
           medicoNome: vaga.medico.nome,
-          modalidade: modalidadesPorMedico.get(vaga.medico_id),
+          modalidade,
           vagas_totais: vaga.vagas_totais,
           vagas_preenchidas: preenchidas,
           turno: vaga.turno,
@@ -123,6 +108,16 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
       });
 
       setVagasPorDia(vagasMap);
+      
+      const mods = Array.from(todasModalidades).sort();
+      setModalidades(mods);
+      
+      // Auto-seleciona a primeira modalidade para não misturá-las
+      setFilterModalidade((prev) => {
+        if (!prev && mods.length > 0) return mods[0];
+        if (prev && !mods.includes(prev) && mods.length > 0) return mods[0];
+        return prev;
+      });
     } catch (error) {
       console.error('Erro ao carregar calendário:', error);
       setNotification({
@@ -176,7 +171,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
   const dias = getDiasDoMes();
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-  const filteredVagas = filterMedico || filterModalidade
+  const filteredVagas = filterMedico || filterModalidade || filterTurno
     ? Array.from(vagasPorDia).reduce((acc, [date, vagas]) => {
         const filtered = vagas.filter((v) => {
           const matchMedico = !filterMedico || v.medico_id === filterMedico;
@@ -252,9 +247,8 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
               <select
                 value={filterModalidade}
                 onChange={(e) => setFilterModalidade(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-700 flex-1 md:flex-none"
+                className="px-4 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 text-blue-800 font-bold flex-1 md:flex-none shadow-sm"
               >
-                <option value="">Todas as modalidades</option>
                 {modalidades.map((m) => (
                   <option key={m} value={m}>
                     {m}

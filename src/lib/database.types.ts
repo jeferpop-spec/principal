@@ -64,6 +64,7 @@ export interface Database {
           data: string
           medico_id: string
           turno: string
+          modalidade: string | null
           vagas_totais: number
           created_at: string
         }
@@ -72,6 +73,7 @@ export interface Database {
           data: string
           medico_id: string
           turno: string
+          modalidade?: string | null
           vagas_totais: number
           created_at?: string
         }
@@ -80,6 +82,7 @@ export interface Database {
           data?: string
           medico_id?: string
           turno?: string
+          modalidade?: string | null
           vagas_totais?: number
           created_at?: string
         }

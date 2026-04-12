@@ -203,6 +203,11 @@ export function AgendaCell({
                     {vaga.turno === 'manha' ? '(M)' : '(T)'}
                   </span>
                 </div>
+                {vaga.modalidade && (
+                  <div className="text-[9px] font-bold text-gray-500 bg-gray-100 rounded px-1 w-fit mb-0.5 truncate max-w-full">
+                    {vaga.modalidade}
+                  </div>
+                )}
                 
                 <div className="flex gap-[3px] mt-0.5 flex-wrap">
                   {/* Slots ocupados */}

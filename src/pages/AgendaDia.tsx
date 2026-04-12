@@ -85,21 +85,7 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
         .select('*, medico:medicos(nome)')
         .eq('data', dataStr);
 
-      // Fetch modalidades dos médicos
-      const { data: modalidadesData } = await supabase
-        .from('codigos_aghu')
-        .select('medico_id, modalidade')
-        .eq('ativo', true);
-
-      // Criar map de medico_id -> modalidade
-      const modalidadesPorMedico = new Map<string, string>();
       const todasModalidades = new Set<string>();
-      modalidadesData?.forEach((m: any) => {
-        if (!modalidadesPorMedico.has(m.medico_id)) {
-          modalidadesPorMedico.set(m.medico_id, m.modalidade);
-        }
-        if (m.modalidade) todasModalidades.add(m.modalidade);
-      });
 
       // Fetch marcações do dia
       const { data: marcacoes } = await supabase
@@ -116,7 +102,8 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
       vagas?.forEach((vaga: any) => {
         const key = `${dataStr}-${vaga.medico_id}-${vaga.turno}`;
         const preenchidas = marcacoesPorMedico.get(key) || 0;
-        const modalidade = modalidadesPorMedico.get(vaga.medico_id);
+        const modalidade = vaga.modalidade || '';
+        if (modalidade) todasModalidades.add(modalidade);
 
         vagasDia.push({
           data: vaga.data,
@@ -146,7 +133,16 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
       });
 
       setVagasDoDia(vagasDia);
-      setModalidades(Array.from(todasModalidades).sort());
+      const mods = Array.from(todasModalidades).sort();
+      setModalidades(mods);
+      
+      // Auto-seleciona a primeira modalidade para não misturá-las
+      setFilterModalidade((prev) => {
+        if (!prev && mods.length > 0) return mods[0];
+        if (prev && !mods.includes(prev) && mods.length > 0) return mods[0];
+        return prev;
+      });
+      
       setResumoDia(resumo);
     } catch (error) {
       console.error('Erro ao carregar agenda do dia:', error);
@@ -352,9 +348,8 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
             <select
               value={filterModalidade}
               onChange={(e) => setFilterModalidade(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 text-blue-800 font-bold shadow-sm"
             >
-              <option value="">Todas as modalidades</option>
               {modalidades.map((modalidade) => (
                 <option key={modalidade} value={modalidade}>
                   {modalidade}

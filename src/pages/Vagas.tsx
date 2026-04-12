@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, CreditCard as Edit2, Trash2, Calendar } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, CreditCard as Edit2, Trash2, Calendar, Upload, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
@@ -24,6 +24,7 @@ interface FormData {
   data: string;
   medico_id: string;
   turno: string;
+  modalidade: string;
   vagas_totais: number;
 }
 
@@ -38,13 +39,16 @@ interface BloqueioListado {
 export function Vagas() {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [medicos, setMedicos] = useState<Medico[]>([]);
+  const [codigosAghu, setCodigosAghu] = useState<{ medico_id: string, modalidade: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterData, setFilterData] = useState('');
   const [filterMedico, setFilterMedico] = useState('');
+  const [filterModalidade, setFilterModalidade] = useState('');
   const [filterTurno, setFilterTurno] = useState('');
   const [notification, setNotification] = useState<{ type: NotificationType; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [bloqueios, setBloqueios] = useState<BloqueioListado[]>([]);
   const [activeListTab, setActiveListTab] = useState<'vagas' | 'bloqueios'>('vagas');
@@ -61,6 +65,7 @@ export function Vagas() {
     data: '',
     medico_id: '',
     turno: 'manha',
+    modalidade: '',
     vagas_totais: 1,
   });
 
@@ -70,15 +75,17 @@ export function Vagas() {
 
   async function loadData() {
     try {
-      const [vagasRes, medicosRes, bloqueiosRes] = await Promise.all([
+      const [vagasRes, medicosRes, bloqueiosRes, codigosRes] = await Promise.all([
         supabase.from('vagas_dia').select('*, medico:medicos(nome)').order('data', { ascending: false }),
         supabase.from('medicos').select('id, nome').eq('ativo', true).order('nome'),
         supabase.from('bloqueios_agenda').select('*, medico:medicos(nome)').eq('ativo', true).order('data_inicio', { ascending: false }),
+        supabase.from('codigos_aghu').select('medico_id, modalidade').eq('ativo', true),
       ]);
 
       if (vagasRes.data) setVagas(vagasRes.data as unknown as Vaga[]);
       if (medicosRes.data) setMedicos(medicosRes.data);
       if (bloqueiosRes.data) setBloqueios(bloqueiosRes.data as unknown as BloqueioListado[]);
+      if (codigosRes.data) setCodigosAghu(codigosRes.data as { medico_id: string, modalidade: string }[]);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -155,11 +162,123 @@ export function Vagas() {
     }
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n').map(l => l.trim()).filter(line => line !== '');
+        
+        if (lines[0].toUpperCase().includes('DATA')) {
+          lines.shift();
+        }
+
+        const vagasToInsert: any[] = [];
+        const errors: string[] = [];
+
+        lines.forEach((line, index) => {
+          let cells = line.split(';');
+          if (cells.length < 4) cells = line.split(',');
+          
+          if (cells.length < 4) return;
+          
+          const [dataStr, turnoStr, medicoNome, modalidadeStr, vagasStr] = cells.map(c => c?.trim()?.replace(/['"]/g, ''));
+          if (!dataStr || !turnoStr || !medicoNome) return;
+
+          let formattedData = dataStr;
+          if (dataStr.includes('/')) {
+            const parts = dataStr.split('/');
+            if (parts.length === 3) {
+              const day = parts[0], month = parts[1], year = parts[2];
+              formattedData = `${year.length === 2 ? '20'+year : year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+          }
+          
+          // Limpa prefixos DR, DRA e espaços extras para busca inteligente
+          const nomeLimpoCSV = medicoNome.toUpperCase().replace(/^DR\.?\s+|^DRA\.?\s+/g, '').trim();
+          
+          let medicoMatch = medicos.find(m => m.nome.toUpperCase() === medicoNome.toUpperCase());
+          
+          // Se não achar exato, tenta achar por aproximação (ex: "LUIS FELIPE" contido em "LUIS FELIPE DE AMORIM PAIVA")
+          if (!medicoMatch) {
+            const matches = medicos.filter(m => {
+              const nomeLimpoDB = m.nome.toUpperCase().replace(/^DR\.?\s+|^DRA\.?\s+/g, '').trim();
+              return nomeLimpoDB.includes(nomeLimpoCSV) || nomeLimpoCSV.includes(nomeLimpoDB);
+            });
+            
+            // Só assumimos a correspondência se achar exatamente UM médico que bate com o termo para evitar ambiguidades cruzadas
+            if (matches.length === 1) {
+              medicoMatch = matches[0];
+            }
+          }
+
+          if (!medicoMatch) {
+            errors.push(`Linha ${index + 2}: Médico '${medicoNome}' não encontrado (ou nome é muito curto/ambíguo).`);
+            return;
+          }
+
+          vagasToInsert.push({
+            data: formattedData,
+            medico_id: medicoMatch.id,
+            turno: turnoStr.toLowerCase().includes('manh') ? 'manha' : 'tarde',
+            modalidade: modalidadeStr || '',
+            vagas_totais: parseInt(vagasStr, 10) || 1,
+          });
+        });
+
+        if (errors.length > 0) {
+          alert('Foram encontrados problemas em algumas linhas que travaram o arquivo todo:\n\n' + errors.join('\n') + '\n\nPor favor, corrija na planilha e tente novamente.');
+          setLoading(false);
+          return;
+        }
+
+        if (vagasToInsert.length === 0) {
+           setNotification({ type: 'error', message: 'Nenhuma linha lida com sucesso.' });
+           setLoading(false);
+           return;
+        }
+
+        const { error } = await supabase.from('vagas_dia').insert(vagasToInsert);
+        if (error) {
+           if (error.code === '23505') throw new Error('Algumas dessas vagas já existem e conflitavam no dia/médico escolhido.');
+           throw error;
+        }
+        
+        setNotification({ type: 'success', message: `${vagasToInsert.length} novas vagas importadas com sucesso!!` });
+        loadData();
+      } catch (err: any) {
+        console.error('Erro na importação:', err);
+        alert(err.message || 'Falha ao importar o arquivo CSV.');
+        setLoading(false);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function downloadTemplate() {
+    const header = "DATA (DD/MM/AAAA);TURNO;MEDICO;MODALIDADE;VAGAS_TOTAIS\n";
+    const example = "20/04/2026;manha;LUIS FELIPE DE AMORIM PAIVA;TOMOGRAFIA;3\n";
+    const blob = new Blob([header + example], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'modelo_importacao_vagas.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   function handleEdit(vaga: Vaga) {
     setFormData({
       data: vaga.data,
       medico_id: vaga.medico_id,
       turno: vaga.turno,
+      modalidade: (vaga as any).modalidade || '',
       vagas_totais: vaga.vagas_totais,
     });
     setEditingId(vaga.id);
@@ -172,6 +291,7 @@ export function Vagas() {
       data: '',
       medico_id: '',
       turno: 'manha',
+      modalidade: '',
       vagas_totais: 1,
     });
     setBloqueioForm({
@@ -188,7 +308,8 @@ export function Vagas() {
     const matchData = !filterData || vaga.data === filterData;
     const matchMedico = !filterMedico || vaga.medico_id === filterMedico;
     const matchTurno = !filterTurno || vaga.turno === filterTurno;
-    return matchData && matchMedico && matchTurno;
+    const matchModalidade = !filterModalidade || (vaga as any).modalidade === filterModalidade;
+    return matchData && matchMedico && matchTurno && matchModalidade;
   });
 
   const filteredBloqueios = bloqueios.filter((bloq) => {
@@ -223,16 +344,43 @@ export function Vagas() {
           <h1 className="text-3xl font-bold text-gray-800">Configuração de Vagas</h1>
           <p className="text-gray-500 mt-1">Definir quantidade de vagas por médico e data</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
-        >
-          <Plus size={20} />
-          Nova Configuração
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={downloadTemplate}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+            title="Baixar Modelo de Planilha"
+          >
+            <Download size={20} />
+            Modelo CSV
+          </button>
+          
+          <input 
+            type="file" 
+            accept=".csv" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            style={{ display: 'none' }} 
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-md"
+            title="Importar de uma Planilha pronta"
+          >
+            <Upload size={20} />
+            Importar CSV
+          </button>
+
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors shadow-md ml-2"
+          >
+            <Plus size={20} />
+            Nova Lançamento (Manual)
+          </button>
+        </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Data</label>
           <div className="relative">
@@ -257,6 +405,19 @@ export function Vagas() {
               <option key={medico.id} value={medico.id}>
                 {medico.nome}
               </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Modalidade</label>
+          <select
+            value={filterModalidade}
+            onChange={(e) => setFilterModalidade(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            <option value="">Todas</option>
+            {Array.from(new Set(codigosAghu.map(c => c.modalidade))).sort().map(mod => (
+              <option key={mod} value={mod}>{mod}</option>
             ))}
           </select>
         </div>
@@ -320,7 +481,16 @@ export function Vagas() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Médico</label>
                 <select
                   value={formData.medico_id}
-                  onChange={(e) => setFormData({ ...formData, medico_id: e.target.value })}
+                  onChange={(e) => {
+                    const selectedMedico = e.target.value;
+                    // Ao trocar o médico, tentamos pre-selecionar a primeira modalidade dele, ou limpar se não tiver
+                    const modsDisponiveis = codigosAghu.filter(c => c.medico_id === selectedMedico);
+                    setFormData({ 
+                      ...formData, 
+                      medico_id: selectedMedico, 
+                      modalidade: modsDisponiveis.length > 0 ? modsDisponiveis[0].modalidade : ''
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   required
                 >
@@ -329,6 +499,22 @@ export function Vagas() {
                     <option key={medico.id} value={medico.id}>
                       {medico.nome}
                     </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Modalidade (Filtrada p/ Médico)</label>
+                <select
+                  value={formData.modalidade}
+                  onChange={(e) => setFormData({ ...formData, modalidade: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                  disabled={!formData.medico_id}
+                >
+                  <option value="">Selecione uma especialidade...</option>
+                  {Array.from(new Set(codigosAghu.filter(c => c.medico_id === formData.medico_id).map(c => c.modalidade))).map(modalidade => (
+                    <option key={modalidade} value={modalidade}>{modalidade}</option>
                   ))}
                 </select>
               </div>
@@ -464,7 +650,7 @@ export function Vagas() {
             <tr>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Data</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Médico</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Turno</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Modalidade/Turno</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Vagas Totais</th>
               <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
             </tr>
@@ -472,7 +658,7 @@ export function Vagas() {
           <tbody className="divide-y divide-gray-200">
             {filteredVagas.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                   Nenhuma configuração encontrada
                 </td>
               </tr>
@@ -484,9 +670,12 @@ export function Vagas() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">{vaga.medico?.nome}</td>
                   <td className="px-6 py-4 text-sm text-gray-800">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${vaga.turno === 'manha' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {vaga.turno === 'manha' ? 'MANHÃ' : 'TARDE'}
-                    </span>
+                    <div className="flex flex-col gap-1 items-start">
+                      {(vaga as any).modalidade && <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded shadow-sm border border-gray-200">{(vaga as any).modalidade}</span>}
+                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${vaga.turno === 'manha' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {vaga.turno === 'manha' ? 'MANHÃ' : 'TARDE'}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">
                     <span className="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-800 font-medium">
