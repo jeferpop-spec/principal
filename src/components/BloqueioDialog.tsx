@@ -2,7 +2,7 @@
  * BloqueioDialog - Modal para gerenciar bloqueios de um médico
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Plus, Loader } from 'lucide-react';
 import { BloqueioAgenda, CreateBloqueioDTO } from '../lib/bloqueios.types';
 import { useBloqueios } from '../hooks/useBloqueios';
@@ -32,14 +32,7 @@ export function BloqueioDialog({
   const [editingBloqueio, setEditingBloqueio] = useState<BloqueioAgenda | null>(null);
   const [loadingBloqueios, setLoadingBloqueios] = useState(false);
 
-  // Carregar bloqueios quando dialog abre
-  useEffect(() => {
-    if (isOpen && medicoId) {
-      loadBloqueios();
-    }
-  }, [isOpen, medicoId]);
-
-  const loadBloqueios = async () => {
+  const loadBloqueios = useCallback(async () => {
     setLoadingBloqueios(true);
     try {
       const dados = await carregarBloqueiosPorMedico(medicoId, 24);
@@ -47,7 +40,14 @@ export function BloqueioDialog({
     } finally {
       setLoadingBloqueios(false);
     }
-  };
+  }, [carregarBloqueiosPorMedico, medicoId]);
+
+  // Carregar bloqueios quando dialog abre
+  useEffect(() => {
+    if (isOpen && medicoId) {
+      loadBloqueios();
+    }
+  }, [isOpen, medicoId, loadBloqueios]);
 
   const handleSubmitForm = async (data: CreateBloqueioDTO) => {
     try {

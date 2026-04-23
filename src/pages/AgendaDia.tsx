@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, Users, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Notification, NotificationType } from '../components/Notification';
@@ -57,21 +57,16 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
 
   const { carregarBloqueios, verificarDiaBloqueado } = useBloqueios();
 
-  useEffect(() => {
-    loadMedicos();
-    loadAgendaDia();
-  }, [dataSelecionada]);
-
-  async function loadMedicos() {
+  const loadMedicos = useCallback(async () => {
     try {
       const { data } = await supabase.from('medicos').select('id, nome').eq('ativo', true).order('nome');
       if (data) setMedicos(data);
     } catch (error) {
       console.error('Erro ao carregar médicos:', error);
     }
-  }
+  }, []);
 
-  async function loadAgendaDia() {
+  const loadAgendaDia = useCallback(async () => {
     setLoading(true);
     try {
       const dataStr = dataSelecionada.toISOString().split('T')[0];
@@ -97,7 +92,6 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
       const marcacoesPorMedico = agruparMarcacoesPorDiaMedico(marcacoes || []);
 
       const vagasDia: VagaDia[] = [];
-      const modalidadesSet = new Set<string>();
 
       vagas?.forEach((vaga: any) => {
         const key = `${dataStr}-${vaga.medico_id}-${vaga.turno}`;
@@ -153,7 +147,13 @@ export function AgendaDia({ onMarcacaoRapida, onNavigate }: AgendaDiaProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [dataSelecionada, carregarBloqueios, verificarDiaBloqueado]);
+
+  useEffect(() => {
+    loadMedicos();
+    loadAgendaDia();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSelecionada]);
 
   function navegarDia(delta: number) {
     const novaData = new Date(dataSelecionada);

@@ -6,7 +6,7 @@
  * Mostra vagas visualmente com quadrinhos (como marcas na folha de papel)
  */
 
-import { VagaIndicator, VagaStatus } from './VagaIndicator';
+import { VagaStatus } from './VagaIndicator';
 import { BloqueioAgenda, motivosBloqueio } from '../lib/bloqueios.types';
 import { calcularEstadoCelula } from '../lib/agenda.utils';
 import { MarcacaoRapidaData } from '../App';
@@ -49,18 +49,7 @@ function getBackgroundColor(ehHoje: boolean, ehMesAtual: boolean, esFeriado: boo
   return 'bg-slate-50 border-slate-200 text-slate-400';
 }
 
-function getBloqueioLabel(bloqueio: BloqueioAgenda) {
-  const motivo = motivosBloqueio[bloqueio.motivo];
 
-  if (bloqueio.motivo === 'ferias') {
-    return { icon: '🔴', label: 'FÉRIAS' };
-  }
-
-  return {
-    icon: '⛔',
-    label: motivo.label.toUpperCase(),
-  };
-}
 
 /**
  * Retorna a cor do número do dia baseado no estado
@@ -93,8 +82,7 @@ export function AgendaCell({
   const diaDaSemana = data.getDay();
   const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
 
-  const bgColor = getBackgroundColor(ehHoje, ehMesAtual, esFeriado);
-  const dateColor = getDateNumberColor(ehMesAtual, esFeriado, ehFimDeSemana || isWeekend);
+
 
   /**
    * Trata clique em uma vaga para marcação rápida
@@ -138,7 +126,7 @@ export function AgendaCell({
 
   return (
     <div
-      className={`min-h-[180px] rounded-[2rem] border-[2px] border-[#e3e3e3] p-3 md:p-4 transition-all ${
+      className={`h-full min-h-[260px] md:min-h-[280px] rounded-[2rem] border-[2px] border-[#e3e3e3] p-3 md:p-4 transition-all ${
         ehFimDeSemana || esFeriado || bloqueiosPorMedico.size > 0 ? 'bg-[#e3e3e3]' : 'bg-white'
       }`}
       data-date={dataStr}
@@ -159,15 +147,10 @@ export function AgendaCell({
 
       {/* Conteúdo: Médicos e suas vagas */}
       {ehMesAtual && vagasDoDia.length > 0 && (
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           {vagasDoDia.map((vaga) => {
             const bloqueio = bloqueiosPorMedico.get(vaga.medico_id);
-            const estadoCelula = calcularEstadoCelula(
-              vaga.vagas_totais,
-              vaga.vagas_preenchidas,
-              bloqueio,
-              esFeriado
-            );
+
             const maxVisibleSlots = 8;
             const slotsDispCount = Math.max(0, Math.min(vaga.vagas_totais - vaga.vagas_preenchidas, maxVisibleSlots));
             const podeClicarObj = podeClicar(vaga);
@@ -176,11 +159,12 @@ export function AgendaCell({
               <div
                 key={`${vaga.medico_id}-${vaga.data}-${vaga.turno}`}
                 onClick={() => handleClickVaga(vaga)}
-                className={`flex flex-col bg-white border-[2px] border-[#e3e3e3] rounded-2xl py-1 px-1.5 transition-all ${
+                className={`flex flex-col bg-white border-[2px] border-[#e3e3e3] rounded-2xl py-1.5 px-2 transition-all ${
                   podeClicarObj
                     ? 'cursor-pointer hover:shadow-md'
                     : 'cursor-default opacity-80'
                 }`}
+                style={{ minHeight: '56px' }}
                 role={podeClicar(vaga) ? 'button' : 'region'}
                 tabIndex={podeClicar(vaga) ? 0 : undefined}
                 onKeyDown={(e) => {
@@ -190,21 +174,20 @@ export function AgendaCell({
                   }
                 }}
               >
-                <div className="flex justify-between items-baseline mb-0.5">
-                  <span className="text-[10px] md:text-[11px] font-extrabold uppercase text-black truncate tracking-wide mr-1" title={vaga.medicoNome}>
+                <div className="flex justify-between items-start gap-2 mb-0.5 min-w-0">
+                  <span className="flex-1 min-w-0 text-[8px] md:text-[9px] leading-tight font-extrabold uppercase text-black truncate tracking-wide" title={vaga.medicoNome}>
                     {vaga.medicoNome}
                   </span>
-                  <span className={`text-[10px] font-black tracking-tighter px-1 rounded-md border border-[#e3e3e3] ${
+                  <span className={`whitespace-nowrap text-[8px] md:text-[9px] font-black tracking-tighter px-1 rounded-md border border-[#e3e3e3] ${
                       vaga.turno === 'manha'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
+                    }`}>
                     {vaga.turno === 'manha' ? '(M)' : '(T)'}
                   </span>
                 </div>
                 {vaga.modalidade && (
-                  <div className="text-[9px] font-bold text-gray-500 bg-gray-100 rounded px-1 w-fit mb-0.5 truncate max-w-full">
+                  <div className="text-[8px] md:text-[9px] font-semibold text-gray-500 bg-gray-100 rounded px-1 max-w-full mb-0.5 truncate">
                     {vaga.modalidade}
                   </div>
                 )}

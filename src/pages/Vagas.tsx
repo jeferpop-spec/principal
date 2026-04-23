@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Plus, CreditCard as Edit2, Trash2, Calendar, Upload, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 import { Notification, NotificationType } from '../components/Notification';
+
+type VagasDiaInsert = Database['public']['Tables']['vagas_dia']['Insert'];
 
 interface Medico {
   id: string;
@@ -14,6 +16,7 @@ interface Vaga {
   data: string;
   medico_id: string;
   turno: string;
+  modalidade?: string;
   vagas_totais: number;
   medico?: {
     nome: string;
@@ -69,11 +72,15 @@ export function Vagas() {
     vagas_totais: 1,
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const normalizeModalidade = (value?: string) => {
+    const raw = (value ?? '').toString().trim();
+    if (!raw) return '';
+    const normalized = raw.toLowerCase();
+    if (normalized === 'ultrasson' || normalized === 'ultrassom') return 'ULTRASSOM';
+    return raw;
+  };
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [vagasRes, medicosRes, bloqueiosRes, codigosRes] = await Promise.all([
         supabase.from('vagas_dia').select('*, medico:medicos(nome)').order('data', { ascending: false }),
@@ -82,16 +89,32 @@ export function Vagas() {
         supabase.from('codigos_aghu').select('medico_id, modalidade').eq('ativo', true),
       ]);
 
-      if (vagasRes.data) setVagas(vagasRes.data as unknown as Vaga[]);
+      if (vagasRes.data) {
+        const vagasCast = vagasRes.data as any[];
+        setVagas(vagasCast.map((vaga) => ({
+          ...vaga,
+          modalidade: normalizeModalidade(vaga.modalidade),
+        })));
+      }
       if (medicosRes.data) setMedicos(medicosRes.data);
       if (bloqueiosRes.data) setBloqueios(bloqueiosRes.data as unknown as BloqueioListado[]);
-      if (codigosRes.data) setCodigosAghu(codigosRes.data as { medico_id: string, modalidade: string }[]);
+      if (codigosRes.data) {
+        const codigosCast = codigosRes.data as { medico_id: string, modalidade: string }[];
+        setCodigosAghu(codigosCast.map((cod) => ({
+          ...cod,
+          modalidade: normalizeModalidade(cod.modalidade),
+        })));
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,16 +127,21 @@ export function Vagas() {
           data_fim: bloqueioForm.data_fim,
           motivo: bloqueioForm.motivo,
         };
+        // @ts-expect-error bypass
         const { error } = await supabase.from('bloqueios_agenda').insert([payload]);
         if (error) throw error;
         setNotification({ type: 'success', message: 'Bloqueio inserido com sucesso!' });
       } else {
         if (editingId) {
-          const { error } = await supabase.from('vagas_dia').update(formData as Database['public']['Tables']['vagas_dia']['Update']).eq('id', editingId);
+          const payload = { ...formData, modalidade: normalizeModalidade(formData.modalidade) };
+          // @ts-expect-error bypass
+          const { error } = await supabase.from('vagas_dia').update(payload as Database['public']['Tables']['vagas_dia']['Update']).eq('id', editingId);
           if (error) throw error;
           setNotification({ type: 'success', message: 'Vagas atualizadas com sucesso!' });
         } else {
-          const { error } = await supabase.from('vagas_dia').insert([formData] as Database['public']['Tables']['vagas_dia']['Insert'][]);
+          const payload = { ...formData, modalidade: normalizeModalidade(formData.modalidade) };
+          // @ts-expect-error bypass
+          const { error } = await supabase.from('vagas_dia').insert([payload] as Database['public']['Tables']['vagas_dia']['Insert'][]);
           if (error) {
             if (error.code === '23505') {
               setNotification({
@@ -153,7 +181,8 @@ export function Vagas() {
     if (!confirm('Deseja realmente excluir predefinicação de bloqueio/feriado? A agenda voltará a abrir se houver vagas.')) return;
 
     try {
-      await supabase.from('bloqueios_agenda').update({ ativo: false }).eq('id', id);
+      // @ts-expect-error Supabase DB types failing to infer on Update
+      await supabase.from('bloqueios_agenda').update({ ativo: false } as any).eq('id', id);
       setNotification({ type: 'success', message: 'Bloqueio desativado com sucesso!' });
       loadData();
     } catch (error) {
@@ -177,7 +206,7 @@ export function Vagas() {
           lines.shift();
         }
 
-        const vagasToInsert: any[] = [];
+        const vagasToInsert: VagasDiaInsert[] = [];
         const errors: string[] = [];
 
         lines.forEach((line, index) => {
@@ -225,7 +254,7 @@ export function Vagas() {
             data: formattedData,
             medico_id: medicoMatch.id,
             turno: turnoStr.toLowerCase().includes('manh') ? 'manha' : 'tarde',
-            modalidade: modalidadeStr || '',
+            modalidade: normalizeModalidade(modalidadeStr),
             vagas_totais: parseInt(vagasStr, 10) || 1,
           });
         });
@@ -242,7 +271,8 @@ export function Vagas() {
            return;
         }
 
-        const { error } = await supabase.from('vagas_dia').insert(vagasToInsert);
+        // @ts-expect-error Supabase DB types failing to infer on Insert
+        const { error } = await supabase.from('vagas_dia').insert(vagasToInsert as any[]);
         if (error) {
            if (error.code === '23505') throw new Error('Algumas dessas vagas já existem e conflitavam no dia/médico escolhido.');
            throw error;
@@ -278,7 +308,7 @@ export function Vagas() {
       data: vaga.data,
       medico_id: vaga.medico_id,
       turno: vaga.turno,
-      modalidade: (vaga as any).modalidade || '',
+      modalidade: normalizeModalidade((vaga as any).modalidade),
       vagas_totais: vaga.vagas_totais,
     });
     setEditingId(vaga.id);
@@ -304,11 +334,30 @@ export function Vagas() {
     setShowForm(false);
   }
 
+  const normalizeText = (value?: string) => (value ?? '').toString().trim().toLowerCase();
+
+  const normalizeDate = (value: string) => {
+    let input = value.toString().trim();
+    if (input.includes('/')) {
+      const parts = input.split('/').map((part) => part.trim());
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        input = `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
+
+    const date = new Date(input);
+    if (Number.isNaN(date.getTime())) return input;
+    return date.toISOString().split('T')[0];
+  };
+
   const filteredVagas = vagas.filter((vaga) => {
-    const matchData = !filterData || vaga.data === filterData;
+    const vagaDate = normalizeDate(vaga.data);
+    const filterDate = filterData ? normalizeDate(filterData) : '';
+    const matchData = !filterDate || vagaDate === filterDate;
     const matchMedico = !filterMedico || vaga.medico_id === filterMedico;
-    const matchTurno = !filterTurno || vaga.turno === filterTurno;
-    const matchModalidade = !filterModalidade || (vaga as any).modalidade === filterModalidade;
+    const matchTurno = !filterTurno || normalizeText(vaga.turno) === normalizeText(filterTurno);
+    const matchModalidade = !filterModalidade || normalizeText((vaga as any).modalidade) === normalizeText(filterModalidade);
     return matchData && matchMedico && matchTurno && matchModalidade;
   });
 
@@ -440,28 +489,26 @@ export function Vagas() {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{editingId ? 'Editar Vagas' : 'Nova Configuração'}</h2>
             
-            {!editingId && (
-              <div className="flex border-b border-gray-200 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('vaga')}
-                  className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'vaga' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Criar Vagas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('bloqueio')}
-                  className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'bloqueio' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Bloquear Agenda / Feriado
-                </button>
-              </div>
-            )}
+            <div className="flex border-b border-gray-200 mb-4">
+              <button
+                type="button"
+                onClick={() => setActiveTab('vaga')}
+                className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'vaga' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {editingId ? 'Editar Vagas' : 'Criar Vagas'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('bloqueio')}
+                className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'bloqueio' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Bloquear Agenda / Feriado
+              </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {activeTab === 'vaga' ? (
@@ -687,6 +734,7 @@ export function Vagas() {
                       <button
                         onClick={() => handleEdit(vaga)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Editar Vagas"
                       >
                         <Edit2 size={16} />
                       </button>

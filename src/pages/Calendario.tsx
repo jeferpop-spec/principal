@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Notification, NotificationType } from '../components/Notification';
@@ -36,21 +36,24 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
 
   const { carregarBloqueios, verificarDiaBloqueado } = useBloqueios();
 
-  useEffect(() => {
-    loadMedicos();
-    loadCalendario();
-  }, [mesAtual]);
+  const normalizeModalidade = (value?: string) => {
+    const raw = (value ?? '').toString().trim();
+    if (!raw) return '';
+    const normalized = raw.toLowerCase();
+    if (normalized === 'ultrasson' || normalized === 'ultrassom') return 'ULTRASSOM';
+    return raw;
+  };
 
-  async function loadMedicos() {
+  const loadMedicos = useCallback(async () => {
     try {
       const { data } = await supabase.from('medicos').select('id, nome').eq('ativo', true).order('nome');
-      if (data) setMedicos(data);
+      if (data) setMedicos(data as any);
     } catch (error) {
       console.error('Erro ao carregar médicos:', error);
     }
-  }
+  }, []);
 
-  async function loadCalendario() {
+  const loadCalendario = useCallback(async () => {
     setLoading(true);
     try {
       const primeiroDia = new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1);
@@ -70,8 +73,6 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
         .lte('data', dataFim);
 
       const todasModalidades = new Set<string>();
-      
-
 
       // Fetch marcações
       const { data: marcacoes } = await supabase
@@ -88,7 +89,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
       vagas?.forEach((vaga: any) => {
         const key = `${vaga.data}-${vaga.medico_id}-${vaga.turno}`;
         const preenchidas = marcacoesPorMedicoPorDia.get(key) || 0;
-        const modalidade = vaga.modalidade || '';
+        const modalidade = normalizeModalidade(vaga.modalidade || '');
         if (modalidade) todasModalidades.add(modalidade);
 
         const vagaDia: VagaDia = {
@@ -127,7 +128,12 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [mesAtual, carregarBloqueios]);
+
+  useEffect(() => {
+    loadMedicos();
+    loadCalendario();
+  }, [mesAtual, loadMedicos, loadCalendario]);
 
   function getDiasDoMes() {
     const ano = mesAtual.getFullYear();
@@ -175,7 +181,7 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
     ? Array.from(vagasPorDia).reduce((acc, [date, vagas]) => {
         const filtered = vagas.filter((v) => {
           const matchMedico = !filterMedico || v.medico_id === filterMedico;
-          const matchModalidade = !filterModalidade || v.modalidade === filterModalidade;
+          const matchModalidade = !filterModalidade || normalizeModalidade(v.modalidade) === normalizeModalidade(filterModalidade);
           const matchTurno = !filterTurno || v.turno === filterTurno;
           return matchMedico && matchModalidade && matchTurno;
         });
@@ -212,8 +218,8 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
         <p className="text-gray-500 mt-1">Visualização profissional de vagas disponíveis e preenchidas</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+      <div className="bg-white rounded-xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-t-xl">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center justify-between flex-1">
               <button
@@ -273,18 +279,18 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-7 gap-4 mb-4">
+          <div className="grid grid-cols-7 gap-4 mb-4 sticky top-0 z-10 bg-white py-2">
             {diasSemana.map((dia) => (
               <div
                 key={dia}
-                className="text-center font-semibold text-slate-500 uppercase tracking-[0.2em] py-3 text-[11px] bg-slate-50 rounded-2xl"
+                className="text-center font-bold text-black uppercase tracking-[0.2em] py-3 text-[14px] bg-[#e3e3e3] rounded-2xl"
               >
                 {dia}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-4 auto-rows-[240px]">
+          <div className="grid grid-cols-7 gap-4 auto-rows-[minmax(260px,auto)]">
             {dias.map((dia, index) => {
               const dataStr = dia.toISOString().split('T')[0];
               const vagasDoDia = filteredVagas.get(dataStr) || [];
@@ -322,28 +328,28 @@ export function Calendario({ onMarcacaoRapida, onNavigate }: CalendarioProps) {
             })}
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Legenda de Vagas</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <h3 className="text-base font-semibold text-gray-800 mb-3">Legenda de Vagas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Vaga Disponível */}
               <div className="flex items-start gap-3">
-                <div className="w-5 h-5 bg-white border-2 border-gray-300 rounded-md flex items-center justify-center text-xs font-bold text-gray-600 mt-0.5">
+                <div className="w-4 h-4 bg-white border-2 border-gray-300 rounded-md flex items-center justify-center text-[10px] font-bold text-gray-600 mt-0.5">
                   □
                 </div>
                 <div>
-                  <p className="font-medium text-gray-700">Vaga disponível</p>
-                  <p className="text-xs text-gray-500">Espaço aberto para marcação</p>
+                  <p className="font-medium text-[12px] text-gray-700">Vaga disponível</p>
+                  <p className="text-[11px] text-gray-500">Espaço aberto</p>
                 </div>
               </div>
 
               {/* Vaga Preenchida */}
               <div className="flex items-start gap-3">
-                <div className="w-5 h-5 bg-orange-500 border-2 border-orange-600 rounded-md flex items-center justify-center text-xs font-bold text-white mt-0.5">
+                <div className="w-4 h-4 bg-orange-500 border-2 border-orange-600 rounded-md flex items-center justify-center text-[10px] font-bold text-white mt-0.5">
                   ■
                 </div>
                 <div>
-                  <p className="font-medium text-gray-700">Vaga preenchida</p>
-                  <p className="text-xs text-gray-500">Marcação realizada</p>
+                  <p className="font-medium text-[12px] text-gray-700">Vaga preenchida</p>
+                  <p className="text-[11px] text-gray-500">Marcação realizada</p>
                 </div>
               </div>
 

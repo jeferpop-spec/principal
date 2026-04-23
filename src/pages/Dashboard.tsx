@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Users, FileText, Calendar, CheckCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/database.types';
+
 import { STATUS_OCUPAM_VAGA } from '../lib/marcacoes.utils';
 
 interface Stats {
@@ -35,7 +35,7 @@ export function Dashboard() {
       const [medicosRes, codigosRes, vagasRes, marcacoesRes] = await Promise.all([
         supabase.from('medicos').select('id', { count: 'exact' }).eq('ativo', true),
         supabase.from('codigos_aghu').select('id', { count: 'exact' }).eq('ativo', true),
-        supabase.from('vagas_dia').select('vagas_totais').gte('data', primeiroDiaMes).lte('data', ultimoDiaMes) as { data: { vagas_totais: number }[] | null },
+        supabase.from('vagas_dia').select('vagas_totais').gte('data', primeiroDiaMes).lte('data', ultimoDiaMes) as unknown as Promise<{ data: { vagas_totais: number }[] | null }>,
         supabase.from('marcacoes').select('id', { count: 'exact' }).gte('data', primeiroDiaMes).lte('data', ultimoDiaMes).in('status', STATUS_OCUPAM_VAGA as unknown as string[]),
       ]);
 

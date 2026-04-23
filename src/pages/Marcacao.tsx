@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/database.types';
+
 import { Notification, NotificationType } from '../components/Notification';
 import { STATUS_OCUPAM_VAGA } from '../lib/marcacoes.utils';
 import { MarcacaoRapidaData } from '../App';
@@ -50,11 +50,6 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
     codigo_aghu: '',
   });
 
-  useEffect(() => {
-    loadMedicos();
-    loadAllCodigos();
-  }, []);
-
   /**
    * Pré-preenche formulário quando vem de marcação rápida da agenda
    */
@@ -72,77 +67,12 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
     }
   }, [precheckedData]);
 
-  useEffect(() => {
-    if (formData.medico_id) {
-      updateModalidades();
-    } else {
-      setModalidades([]);
-      setEspecialidades([]);
-      setCodigoSugerido('');
-      setFormData((prev) => ({ ...prev, modalidade: '', especialidade: '', codigo_aghu: '' }));
-    }
-  }, [formData.medico_id, allCodigos]);
-
-  useEffect(() => {
-    if (formData.modalidade && formData.medico_id) {
-      updateEspecialidades();
-    } else {
-      setEspecialidades([]);
-      setCodigoSugerido('');
-      setFormData((prev) => ({ ...prev, especialidade: '', codigo_aghu: '' }));
-    }
-  }, [formData.modalidade, allCodigos]);
-
-  useEffect(() => {
-    if (formData.especialidade && formData.modalidade && formData.medico_id) {
-      updateCodigoAghu();
-    } else {
-      setCodigoSugerido('');
-      setFormData((prev) => ({ ...prev, codigo_aghu: '' }));
-    }
-  }, [formData.especialidade, allCodigos]);
-
-  useEffect(() => {
-    if (formData.data && formData.medico_id && formData.turno) {
-      checkVagasDisponiveis();
-    } else {
-      setVagasDisponiveis(null);
-    }
-  }, [formData.data, formData.medico_id, formData.turno]);
-
-  async function loadMedicos() {
-    try {
-      const { data } = await supabase.from('medicos').select('id, nome').eq('ativo', true).order('nome');
-      if (data) setMedicos(data);
-    } catch (error) {
-      console.error('Erro ao carregar médicos:', error);
-    }
-  }
-
-  async function loadAllCodigos() {
-    try {
-      const { data, error } = await supabase.from('codigos_aghu').select('medico_id, modalidade, exame, codigo_aghu').eq('ativo', true);
-      if (error) throw error;
-      if (data) {
-        const mappedData = data.map((c: any) => ({
-          medico_id: c.medico_id,
-          modalidade: c.modalidade,
-          especialidade: c.exame,
-          codigo_aghu: c.codigo_aghu
-        }));
-        setAllCodigos(mappedData as CodigoInfo[]);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar códigos:', error);
-    }
-  }
-
-  function updateModalidades() {
+  const updateModalidades = useCallback(() => {
     const modalidadesUniques = [...new Set(allCodigos.filter((c) => c.medico_id === formData.medico_id).map((c) => c.modalidade))];
     setModalidades(modalidadesUniques.sort());
-  }
+  }, [allCodigos, formData.medico_id]);
 
-  function updateEspecialidades() {
+  const updateEspecialidades = useCallback(() => {
     const especialidadesUniques = [
       ...new Set(
         allCodigos
@@ -151,9 +81,9 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
       ),
     ];
     setEspecialidades(especialidadesUniques.sort());
-  }
+  }, [allCodigos, formData.medico_id, formData.modalidade]);
 
-  function updateCodigoAghu() {
+  const updateCodigoAghu = useCallback(() => {
     const codigo = allCodigos.find(
       (c) =>
         c.medico_id === formData.medico_id &&
@@ -168,9 +98,9 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
       setCodigoSugerido('');
       setFormData((prev) => ({ ...prev, codigo_aghu: '' }));
     }
-  }
+  }, [allCodigos, formData.medico_id, formData.modalidade, formData.especialidade]);
 
-  async function checkVagasDisponiveis() {
+  const checkVagasDisponiveis = useCallback(async () => {
     try {
       const { data: vagaConfig } = await supabase
         .from('vagas_dia')
@@ -200,7 +130,78 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
       console.error('Erro ao verificar vagas:', error);
       setVagasDisponiveis(null);
     }
-  }
+  }, [formData.data, formData.medico_id, formData.turno]);
+
+  useEffect(() => {
+    if (formData.medico_id) {
+      updateModalidades();
+    } else {
+      setModalidades([]);
+      setEspecialidades([]);
+      setCodigoSugerido('');
+      setFormData((prev) => ({ ...prev, modalidade: '', especialidade: '', codigo_aghu: '' }));
+    }
+  }, [formData.medico_id, allCodigos, updateModalidades]);
+
+  useEffect(() => {
+    if (formData.modalidade && formData.medico_id) {
+      updateEspecialidades();
+    } else {
+      setEspecialidades([]);
+      setCodigoSugerido('');
+      setFormData((prev) => ({ ...prev, especialidade: '', codigo_aghu: '' }));
+    }
+  }, [formData.modalidade, formData.medico_id, allCodigos, updateEspecialidades]);
+
+  useEffect(() => {
+    if (formData.especialidade && formData.modalidade && formData.medico_id) {
+      updateCodigoAghu();
+    } else {
+      setCodigoSugerido('');
+      setFormData((prev) => ({ ...prev, codigo_aghu: '' }));
+    }
+  }, [formData.especialidade, formData.modalidade, formData.medico_id, allCodigos, updateCodigoAghu]);
+
+  useEffect(() => {
+    if (formData.data && formData.medico_id && formData.turno) {
+      checkVagasDisponiveis();
+    } else {
+      setVagasDisponiveis(null);
+    }
+  }, [formData.data, formData.medico_id, formData.turno, checkVagasDisponiveis]);
+
+  const loadMedicos = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('medicos').select('id, nome').eq('ativo', true).order('nome');
+      if (data) setMedicos(data);
+    } catch (error) {
+      console.error('Erro ao carregar médicos:', error);
+    }
+  }, []);
+
+  const loadAllCodigos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('codigos_aghu').select('medico_id, modalidade, exame, codigo_aghu').eq('ativo', true);
+      if (error) throw error;
+      if (data) {
+         const mappedData = data.map((c: any) => ({
+          medico_id: c.medico_id,
+          modalidade: c.modalidade,
+          especialidade: c.exame,
+          codigo_aghu: c.codigo_aghu
+        }));
+        setAllCodigos(mappedData as CodigoInfo[]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar códigos:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMedicos();
+    loadAllCodigos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMedicos, loadAllCodigos]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -231,7 +232,7 @@ export function Marcacao({ precheckedData, onClear }: MarcacaoProps) {
     }
 
     try {
-      const { error: insertError } = await supabase.from('marcacoes').insert([formData] as Database['public']['Tables']['marcacoes']['Insert'][]);
+      const { error: insertError } = await supabase.from('marcacoes').insert([formData] as any);
 
       if (insertError) {
         if (insertError.code === '23505') {
